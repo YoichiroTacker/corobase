@@ -76,6 +76,8 @@ public:
 
     // A context-switch transaction doesn't enter/exit thread during construct/destruct.
     TXN_FLAG_CSWITCH = 0x8,
+
+    TXN_FLAG_TAKADA = 0x10,
   };
 
   inline bool is_read_mostly() { return flags & TXN_FLAG_READ_MOSTLY; }

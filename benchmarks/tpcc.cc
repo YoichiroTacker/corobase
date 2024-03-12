@@ -510,7 +510,8 @@ rc_t tpcc_worker::txn_order_status() {
   //   max_read_set_size : 81
   //   max_write_set_size : 0
   //   num_txn_contexts : 4
-  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  //ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_TAKADA, *arena, txn_buf());
   ermia::scoped_str_arena s_arena(arena);
   // NB: since txn_order_status() is a RO txn, we assume that
   // locking is un-necessary (since we can just read from some old snapshot)
@@ -635,7 +636,8 @@ rc_t tpcc_worker::txn_stock_level() {
   //   n_node_scan_large_instances : 1
   //   n_read_set_large_instances : 2
   //   num_txn_contexts : 3
-  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  //ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_TAKADA, *arena, txn_buf());
   ermia::scoped_str_arena s_arena(arena);
   // NB: since txn_stock_level() is a RO txn, we assume that
   // locking is un-necessary (since we can just read from some old snapshot)
@@ -819,7 +821,7 @@ rc_t tpcc_worker::txn_credit_check() {
 rc_t tpcc_worker::txn_query2() {
   // TODO(yongjunh): use TXN_FLAG_READ_MOSTLY once SSN's and SSI's read optimization are available.
   //ermia::transaction *txn = db->NewTransaction(0, *arena, txn_buf());
-  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_TAKADA, *arena, txn_buf());
   ermia::scoped_str_arena s_arena(arena);
 
   static thread_local tpcc_table_scanner r_scanner(arena);
