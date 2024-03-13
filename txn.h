@@ -164,6 +164,7 @@ protected:
   read_set_t validated_read_set;
   read_set_t retrying_task_set;
 #endif
+#endif
 };
 
 }  // namespace ermia
