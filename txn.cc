@@ -223,12 +223,14 @@ void transaction::ssn_retry(){
     rc_t rc=RC_ABORT_SERIAL;
     while(rc._val!=RC_TRUE){
         for (uint32_t i = 0; i < read_set.size(); ++i){
-          auto &r = read_set[i];
-          if (&r->sstamp == NULL_PTR)
+          dbtuple *r = read_set[i];
+          //if (&r->sstamp == NULL_PTR)
+          if (r->sstamp.offset() == 0)
             validated_read_set.emplace_back(r);
           else
             retrying_task_set.emplace_back(r);
         }
+        //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
         Abort();        
         TXN::serial_deregister_tx(coro_batch_idx, xid);
         MM::epoch_exit(xc->end, xc->begin_epoch);
@@ -238,20 +240,31 @@ void transaction::ssn_retry(){
       initialize_read_write();
       for (uint32_t i = 0; i < validated_read_set.size(); ++i) {
         dbtuple *r = validated_read_set[i];
-        if(&r->sstamp==NULL_PTR)
+        if(r->sstamp.offset()==0)
           serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
         else{
           rc=ssn_read(r);
-          read_set.erase(read_set.begin() + i);
+          //ermia::varstr vv;
+          //rc=DuTupleRead(r, &vv);
+          validated_read_set.erase(read_set.begin() + i);
           --i;
+          //if(rc._val==RC_FALSE){
+          //  return;
+          }
         }
       }
-      for (uint32_t i = 0; i < retrying_task_set.size(); ++i) {
-        auto &r = retrying_task_set[i];
+      /*for (uint32_t i = 0; i < retrying_task_set.size(); ++i) {
+        dbtuple *r = retrying_task_set[i];
         rc=ssn_read(r);
-        read_set.erase(read_set.begin() + i);
+        retrying_task_set.erase(read_set.begin() + i);
           --i;
+      }*/
+      for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
+        dbtuple *r = *it;
+        rc = ssn_read(r);
+        it = retrying_task_set.erase(it);
       }
+
     }
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
@@ -286,8 +299,8 @@ RETRY:
     bool isvalidated = true;
     for (uint32_t i = 0; i < validated_read_set.size(); ++i)
     {
-      auto &r = validated_read_set[i];
-      if (r->sstamp != NULL_PTR)
+      dbtuple *r = validated_read_set[i];
+      if (r->sstamp.offset() != 0)
         isvalidated = false;
       read_set.emplace_back(r);
     }
