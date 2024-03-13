@@ -252,7 +252,6 @@ void transaction::ssn_retry(){
           //  return;
           }
         }
-      }
       /*for (uint32_t i = 0; i < retrying_task_set.size(); ++i) {
         dbtuple *r = retrying_task_set[i];
         rc=ssn_read(r);
@@ -264,7 +263,6 @@ void transaction::ssn_retry(){
         rc = ssn_read(r);
         it = retrying_task_set.erase(it);
       }
-
     }
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
