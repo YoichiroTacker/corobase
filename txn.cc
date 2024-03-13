@@ -229,6 +229,10 @@ void transaction::ssn_retry(){
           else
             retrying_task_set.emplace_back(r);
         }
+        Abort();        
+        TXN::serial_deregister_tx(coro_batch_idx, xid);
+        MM::epoch_exit(xc->end, xc->begin_epoch);
+        TXN::xid_free(xid); 
       rc=RC_INVALID;
       ensure_active();
       initialize_read_write();
