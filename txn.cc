@@ -220,8 +220,8 @@ rc_t transaction::commit() {
 #ifdef SSN
 #if defined(TAKADA)
 void transaction::ssn_retry(){
-    rc_t rc=RC_ABORT_SERIAL;
-    while(rc!=RC_TRUE){
+    rc_t rc=rc_t::RC_ABORT_SERIAL;
+    while(rc!=rc_t::RC_TRUE){
         for (uint32_t i = 0; i < read_set.size(); ++i){
           auto &r = read_set[i];
           if (&r->sstamp == NULL_PTR)
@@ -237,14 +237,14 @@ void transaction::ssn_retry(){
         if(&r->sstamp==NULL_PTR)
           serial_register_reader_tx(tuple->readers_bitmap); 
         else{
-          rc=ssn_read(&r);
+          rc=ssn_read(r);
           read_set.erase(read_set.begin() + i);
           --i;
         }
       }
       for (uint32_t i = 0; i < retrying_task_set.size(); ++i) {
         auto &r = retrying_task_set[i];
-        rc=ssn_read(&r);
+        rc=ssn_read(r);
         read_set.erase(read_set.begin() + i);
           --i;
       }
@@ -1520,7 +1520,7 @@ rc_t transaction::ssn_read(dbtuple *tuple) {
     if (xc->sstamp > tuple_sstamp.offset() or xc->sstamp == 0)
       xc->sstamp = tuple_sstamp.offset();  // \pi
 #ifdef TAKADA
-      GetReadSet().emplace_back(tuple);   
+      read_set.emplace_back(tuple);   
 #endif
   } else {
     ASSERT(tuple_sstamp == NULL_PTR or

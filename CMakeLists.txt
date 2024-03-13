@@ -107,10 +107,10 @@ target_link_libraries(ermia_adv_coro_SI_SSN ermia_adv_coro_si_ssn thread_pool_ss
 
 #Proposed
 add_library(ermia_takada SHARED ${LIB_ERMIA_SRC})
-set_target_properties(ermia_takada PROPERTIES COMPILE_FLAGS "-DSSN -DTAKDA -DEARLY_SSN_CHECK")
+set_target_properties(ermia_takada PROPERTIES COMPILE_FLAGS "-DSSN -DTAKADA -DEARLY_SSN_CHECK")
 
 add_executable(ermia_TAKADA ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/dbtest.cc)
-set_target_properties(ermia_TAKADA PROPERTIES COMPILE_FLAGS "-DTAKADA -DEARLY_SSN_CHECK")
+set_target_properties(ermia_TAKADA PROPERTIES COMPILE_FLAGS "-DSSN -DTAKADA -DEARLY_SSN_CHECK")
 target_link_libraries(ermia_TAKADA ermia_takada thread_pool_ssn)
 
 # SSI

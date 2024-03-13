@@ -117,6 +117,9 @@ protected:
 
   bool MasstreeCheckPhantom();
   void Abort();
+#ifdef TAKADA
+  void ssn_retry();
+#endif
 
   // Insert a record to the underlying table
   OID Insert(TableDescriptor *td, varstr *value, dbtuple **out_tuple = nullptr);
