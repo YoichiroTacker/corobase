@@ -77,11 +77,12 @@ public:
     // A context-switch transaction doesn't enter/exit thread during construct/destruct.
     TXN_FLAG_CSWITCH = 0x8,
 
-    TXN_FLAG_TAKADA = 0x16,
+    TXN_FLAG_TAKADA = 0x10,
   };
 
   inline bool is_read_mostly() { return flags & TXN_FLAG_READ_MOSTLY; }
   inline bool is_read_only() { return flags & TXN_FLAG_READ_ONLY; }
+  inline bool is_takada() {return flags & TXN_FLAG_TAKADA; }
 
 protected:
   inline txn_state state() const { return xc->state; }

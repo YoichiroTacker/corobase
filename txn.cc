@@ -7,7 +7,7 @@
 
 #define SSN_RETRY_AND_GOTO_RETRY() \
 do {  \
-    if(is_read_only()){ \
+    if(is_takada()){ \
       ssn_retry();  \
       goto RETRY; \
     }else{  \
@@ -225,9 +225,9 @@ void transaction::ssn_retry(){
         for (uint32_t i = 0; i < read_set.size(); ++i){
           auto &r = read_set[i];
           if (&r->sstamp == NULL_PTR)
-            add_to_validated_read_set(&r);
+            validated_read_set.emplace_back(&r);
           else
-            add_to_retrying_task_set(&r);
+            retrying_task_set.emplace_back(&r);
         }
       rc=RC_INVALID;
       ensure_active();
