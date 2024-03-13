@@ -220,22 +220,22 @@ rc_t transaction::commit() {
 #ifdef SSN
 #if defined(TAKADA)
 void transaction::ssn_retry(){
-    rc_t rc=rc_t::RC_ABORT_SERIAL;
-    while(rc!=rc_t::RC_TRUE){
+    rc_t rc=RC_ABORT_SERIAL;
+    while(rc._val!=RC_TRUE){
         for (uint32_t i = 0; i < read_set.size(); ++i){
           auto &r = read_set[i];
           if (&r->sstamp == NULL_PTR)
-            validated_read_set.emplace_back(&r);
+            validated_read_set.emplace_back(r);
           else
-            retrying_task_set.emplace_back(&r);
+            retrying_task_set.emplace_back(r);
         }
       rc=RC_INVALID;
       ensure_active();
       initialize_read_write();
       for (uint32_t i = 0; i < validated_read_set.size(); ++i) {
-        auto &r = validated_read_set[i];
+        dbtuple *r = validated_read_set[i];
         if(&r->sstamp==NULL_PTR)
-          serial_register_reader_tx(tuple->readers_bitmap); 
+          serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
         else{
           rc=ssn_read(r);
           read_set.erase(read_set.begin() + i);
@@ -285,7 +285,7 @@ RETRY:
       auto &r = validated_read_set[i];
       if (r->sstamp != NULL_PTR)
         isvalidated = false;
-      read_set.emplace_back(&r);
+      read_set.emplace_back(r);
     }
     validated_read_set.clear();
     if (isvalidated == false){
