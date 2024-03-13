@@ -5,6 +5,17 @@
 #include "dbcore/serial.h"
 #include "ermia.h"
 
+#define SSN_RETRY_AND_GOTO_RETRY() \
+do {  \
+    if(is_read_only()){ \
+      ssn_retry();  \
+      goto RETRY; \
+    }else{  \
+       return rc_t{RC_ABORT_SERIAL};  \
+    } \
+} while(0)
+
+
 extern thread_local ermia::epoch_num coroutine_batch_end_epoch;
 
 namespace ermia {
@@ -207,7 +218,49 @@ rc_t transaction::commit() {
 #endif
 
 #ifdef SSN
+#if defined(TAKADA)
+void transaction::ssn_retry(){
+    rc_t rc=RC_ABORT_SERIAL;
+    while(rc!=RC_TRUE){
+        for (uint32_t i = 0; i < read_set.size(); ++i){
+          auto &r = read_set[i];
+          if (&r->sstamp == NULL_PTR)
+            add_to_validated_read_set(&r);
+          else
+            add_to_retrying_task_set(&r);
+        }
+      rc=RC_INVALID;
+      ensure_active();
+      initialize_read_write();
+      for (uint32_t i = 0; i < validated_read_set.size(); ++i) {
+        auto &r = validated_read_set[i];
+        if(&r->sstamp==NULL_PTR)
+          serial_register_reader_tx(tuple->readers_bitmap); 
+        else{
+          rc=ssn_read(&r);
+          read_set.erase(read_set.begin() + i);
+          --i;
+        }
+      }
+      for (uint32_t i = 0; i < retrying_task_set.size(); ++i) {
+        auto &r = retrying_task_set[i];
+        rc=ssn_read(&r);
+        read_set.erase(read_set.begin() + i);
+          --i;
+      }
+    }
+    ASSERT(validated_read_set.empty() and retrying_task_set.empty());
+    ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
+    volatile_write(xc->state, TXN::TXN_COMMITTING);
+    ASSERT(log);
+    xc->end = log->pre_commit().offset();
+    return;
+  }
+#endif
+
+
 rc_t transaction::parallel_ssn_commit() {
+RETRY:
   auto cstamp = xc->end;
 
   // note that sstamp comes from reads, but the read optimization might
@@ -223,6 +276,23 @@ rc_t transaction::parallel_ssn_commit() {
     if (xc->sstamp.load(std::memory_order_relaxed) == 0)
       xc->sstamp.store(cstamp, std::memory_order_relaxed);
   }
+
+    // 追加部分
+#ifdef TAKADA
+    bool isvalidated = true;
+    for (uint32_t i = 0; i < validated_read_set.size(); ++i)
+    {
+      auto &r = validated_read_set[i];
+      if (r->sstamp != NULL_PTR)
+        isvalidated = false;
+      read_set.emplace_back(&r);
+    }
+    validated_read_set.clear();
+    if (isvalidated == false){
+      ssn_retry();
+      goto RETRY;
+    }
+#endif
 
   // find out my largest predecessor (\eta) and smallest sucessor (\pi)
   // for reads, see if sb. has written the tuples - look at sucessor lsn
@@ -243,6 +313,9 @@ rc_t transaction::parallel_ssn_commit() {
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
+#ifdef TAKADA
+        SSN_RETRY_AND_GOTO_RETRY();
+#endif
         return rc_t{RC_ABORT_SERIAL};
       }
     } else {
@@ -329,6 +402,9 @@ rc_t transaction::parallel_ssn_commit() {
         }
         xc->set_sstamp(s);
         if (not ssn_check_exclusion(xc)) {
+#ifdef TAKADA
+        SSN_RETRY_AND_GOTO_RETRY();
+#endif
           return rc_t{RC_ABORT_SERIAL};
         }
       }
@@ -418,6 +494,9 @@ rc_t transaction::parallel_ssn_commit() {
           }
           xc->set_pstamp(last_cstamp);
           if (not ssn_check_exclusion(xc)) {
+#ifdef TAKADA
+            SSN_RETRY_AND_GOTO_RETRY();
+#endif
             return rc_t{RC_ABORT_SERIAL};
           }
         }  // otherwise we will catch the tuple's xstamp outside the loop
@@ -485,6 +564,9 @@ rc_t transaction::parallel_ssn_commit() {
             // we succeeded setting the read-mostly tx's sstamp
             xc->set_pstamp(last_cstamp);
             if (not ssn_check_exclusion(xc)) {
+#ifdef TAKADA
+              SSN_RETRY_AND_GOTO_RETRY();
+#endif
               return rc_t{RC_ABORT_SERIAL};
             }
           }
@@ -504,6 +586,9 @@ rc_t transaction::parallel_ssn_commit() {
             }
             xc->set_pstamp(TXN::serial_get_last_read_mostly_cstamp(xid_idx));
             if (not ssn_check_exclusion(xc)) {
+#ifdef TAKADA
+              SSN_RETRY_AND_GOTO_RETRY();
+#endif
               return rc_t{RC_ABORT_SERIAL};
             }
           } else {
@@ -512,6 +597,9 @@ rc_t transaction::parallel_ssn_commit() {
             if (TXN::spin_for_cstamp(rxid, reader_xc) == TXN::TXN_CMMTD) {
               xc->set_pstamp(reader_end);
               if (not ssn_check_exclusion(xc)) {
+#ifdef TAKADA
+                SSN_RETRY_AND_GOTO_RETRY();
+#endif
                 return rc_t{RC_ABORT_SERIAL};
               }
             }
@@ -540,7 +628,12 @@ rc_t transaction::parallel_ssn_commit() {
     xc->finalize_sstamp();
   }
 
-  if (not ssn_check_exclusion(xc)) return rc_t{RC_ABORT_SERIAL};
+  if (not ssn_check_exclusion(xc)){
+#ifdef TAKADA
+        SSN_RETRY_AND_GOTO_RETRY();
+#endif
+        return rc_t{RC_ABORT_SERIAL};
+  }
 
   if (config::phantom_prot && !MasstreeCheckPhantom()) {
     return rc_t{RC_ABORT_PHANTOM};
@@ -1426,6 +1519,9 @@ rc_t transaction::ssn_read(dbtuple *tuple) {
     // have committed overwrite
     if (xc->sstamp > tuple_sstamp.offset() or xc->sstamp == 0)
       xc->sstamp = tuple_sstamp.offset();  // \pi
+#ifdef TAKADA
+      GetReadSet().emplace_back(tuple);   
+#endif
   } else {
     ASSERT(tuple_sstamp == NULL_PTR or
            tuple_sstamp.asi_type() == fat_ptr::ASI_XID);
