@@ -92,7 +92,7 @@ void transaction::initialize_read_write() {
   xc->begin = logmgr->cur_lsn().offset() + 1;
 #else
   // SI - see if it's read only. If so, skip logging etc.
-  if (flags & TXN_FLAG_READ_ONLY) {
+  if (flags & TXN_FLAG_READ_ONLY ||flags & TXN_FLAG_TAKADA) {
     log = nullptr;
   } else {
     log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
@@ -1197,7 +1197,7 @@ rc_t transaction::si_commit() {
     return rc_t{RC_TRUE};
   }
 
-  if (flags & TXN_FLAG_READ_ONLY) {
+  if (flags & TXN_FLAG_READ_ONLY || flags & TXN_FLAG_TAKADA) {
     volatile_write(xc->state, TXN::TXN_CMMTD);
     return rc_t{RC_TRUE};
   }
