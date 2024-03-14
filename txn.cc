@@ -241,6 +241,7 @@ void transaction::ssn_retry(){
         if (log) {
           log->discard();
         }
+        log=nullptr;
 
         TXN::serial_deregister_tx(coro_batch_idx, xid);
         MM::epoch_exit(xc->end, xc->begin_epoch);
@@ -260,8 +261,8 @@ void transaction::ssn_retry(){
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
         //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
-        //xc->begin = logmgr->cur_lsn().offset() + 1;
-        //xc->pstamp = volatile_read(MM::safesnap_lsn);
+        xc->begin = logmgr->cur_lsn().offset() + 1;
+        xc->pstamp = volatile_read(MM::safesnap_lsn);
 
 
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
@@ -672,6 +673,7 @@ RETRY:
   }
 
   // ok, can really commit if we reach here
+  if(!is_takada())
   log->commit(NULL);
 
   // Do this before setting TXN_CMMTD state so that it'll be stable
