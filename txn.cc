@@ -92,7 +92,7 @@ void transaction::initialize_read_write() {
   xc->begin = logmgr->cur_lsn().offset() + 1;
 #else
   // SI - see if it's read only. If so, skip logging etc.
-  if (flags & TXN_FLAG_READ_ONLY ||flags & TXN_FLAG_TAKADA) {
+  if (flags & TXN_FLAG_READ_ONLY) {
     log = nullptr;
   } else {
     log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
@@ -231,38 +231,55 @@ void transaction::ssn_retry(){
             retrying_task_set.emplace_back(r);
         }
         //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
-        Abort();        
+        //Abort();
+        for (uint32_t i = 0; i < read_set.size(); ++i) {
+          auto &r = read_set[i];
+          ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
+          // remove myself from reader list
+          serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
+        }
+        if (log) {
+          log->discard();
+        }
+
         TXN::serial_deregister_tx(coro_batch_idx, xid);
         MM::epoch_exit(xc->end, xc->begin_epoch);
         TXN::xid_free(xid); 
-      rc=RC_INVALID;
-      ensure_active();
-      initialize_read_write();
-      for (uint32_t i = 0; i < validated_read_set.size(); ++i) {
-        dbtuple *r = validated_read_set[i];
-        if(r->sstamp.offset()==0)
-          serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
-        else{
-          rc=ssn_read(r);
-          //ermia::varstr vv;
-          //rc=DuTupleRead(r, &vv);
-          validated_read_set.erase(read_set.begin() + i);
-          --i;
-          //if(rc._val==RC_FALSE){
-          //  return;
+        rc=RC_INVALID;
+        ensure_active();
+        //initialize_read_write();
+        if (config::phantom_prot) {
+          masstree_absent_set.set_empty_key(NULL);  // google dense map
+          masstree_absent_set.clear();
+        }
+        write_set.clear();
+        read_set.clear();
+        xid = TXN::xid_alloc();
+        xc = TXN::xid_get_context(xid);
+        xc->xct = this;
+        xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
+        TXN::serial_register_tx(coro_batch_idx, xid);
+        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        //xc->begin = logmgr->cur_lsn().offset() + 1;
+        //xc->pstamp = volatile_read(MM::safesnap_lsn);
+
+
+        for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
+          dbtuple *r = *it;
+          if(r->sstamp.offset()==0)
+            serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
+            ++it;
+          else{
+            rc=ssn_read(r);
+            it = validated_read_set.erase(it);
           }
         }
-      /*for (uint32_t i = 0; i < retrying_task_set.size(); ++i) {
-        dbtuple *r = retrying_task_set[i];
-        rc=ssn_read(r);
-        retrying_task_set.erase(read_set.begin() + i);
-          --i;
-      }*/
-      for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
-        dbtuple *r = *it;
-        rc = ssn_read(r);
-        it = retrying_task_set.erase(it);
-      }
+
+        for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
+          dbtuple *r = *it;
+          rc = ssn_read(r);
+          it = retrying_task_set.erase(it);
+        }
     }
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
