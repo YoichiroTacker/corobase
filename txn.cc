@@ -346,9 +346,9 @@ RETRY:
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+/*#ifdef TAKADA
         SSN_RETRY_AND_GOTO_RETRY();
-#endif
+#endif*/
         return rc_t{RC_ABORT_SERIAL};
       }
     } else {
