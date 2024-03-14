@@ -285,8 +285,8 @@ void transaction::ssn_retry(){
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
     volatile_write(xc->state, TXN::TXN_COMMITTING);
-    ASSERT(log);
-    xc->end = log->pre_commit().offset();
+    //ASSERT(log);
+    //xc->end = log->pre_commit().offset();
     return;
   }
 #endif
