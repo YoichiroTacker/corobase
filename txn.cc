@@ -527,9 +527,9 @@ RETRY:
           }
           xc->set_pstamp(last_cstamp);
           if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+/*#ifdef TAKADA
             SSN_RETRY_AND_GOTO_RETRY();
-#endif
+#endif*/
             return rc_t{RC_ABORT_SERIAL};
           }
         }  // otherwise we will catch the tuple's xstamp outside the loop
@@ -597,9 +597,9 @@ RETRY:
             // we succeeded setting the read-mostly tx's sstamp
             xc->set_pstamp(last_cstamp);
             if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+/*#ifdef TAKADA
               SSN_RETRY_AND_GOTO_RETRY();
-#endif
+#endif*/
               return rc_t{RC_ABORT_SERIAL};
             }
           }
@@ -619,9 +619,9 @@ RETRY:
             }
             xc->set_pstamp(TXN::serial_get_last_read_mostly_cstamp(xid_idx));
             if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+/*#ifdef TAKADA
               SSN_RETRY_AND_GOTO_RETRY();
-#endif
+#endif*/
               return rc_t{RC_ABORT_SERIAL};
             }
           } else {
@@ -630,9 +630,9 @@ RETRY:
             if (TXN::spin_for_cstamp(rxid, reader_xc) == TXN::TXN_CMMTD) {
               xc->set_pstamp(reader_end);
               if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+/*#ifdef TAKADA
                 SSN_RETRY_AND_GOTO_RETRY();
-#endif
+#endif*/
                 return rc_t{RC_ABORT_SERIAL};
               }
             }
@@ -662,9 +662,9 @@ RETRY:
   }
 
   if (not ssn_check_exclusion(xc)){
-#ifdef TAKADA
+/*#ifdef TAKADA
         SSN_RETRY_AND_GOTO_RETRY();
-#endif
+#endif*/
         return rc_t{RC_ABORT_SERIAL};
   }
 
