@@ -266,10 +266,10 @@ void transaction::ssn_retry(){
 
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
           dbtuple *r = *it;
-          if(r->sstamp.offset()==0)
+          if(r->sstamp.offset()==0){
             serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
             ++it;
-          else{
+          }else{
             rc=ssn_read(r);
             it = validated_read_set.erase(it);
           }
