@@ -264,7 +264,7 @@ void transaction::ssn_retry(){
         xc->begin = logmgr->cur_lsn().offset() + 1;
         xc->pstamp = volatile_read(MM::safesnap_lsn);
 
-
+        bool isvalidated=false;
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
           dbtuple *r = *it;
           if(r->sstamp.offset()==0){
@@ -272,14 +272,28 @@ void transaction::ssn_retry(){
             ++it;
           }else{
             rc=ssn_read(r);
+            if(rc.val_!=RC_TRUE){
+              isvalidated=true;
+            }
             it = validated_read_set.erase(it);
           }
         }
+        if(isvalidated==true){
+          rc =RC_ABORT_SERIAL;
+          continue;
+        }
 
+        isvalidated=false;
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *r = *it;
           rc = ssn_read(r);
+          if(rc.val_!=RC_TRUE){
+              isvalidated=true;
+            }
           it = retrying_task_set.erase(it);
+        }
+        if(isvalidated==true){
+          rc =RC_ABORT_SERIAL;
         }
     }
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
@@ -346,9 +360,9 @@ RETRY:
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
-/*#ifdef TAKADA
+#ifdef TAKADA
         SSN_RETRY_AND_GOTO_RETRY();
-#endif*/
+#endif
         return rc_t{RC_ABORT_SERIAL};
       }
     } else {
@@ -1590,6 +1604,7 @@ rc_t transaction::ssn_read(dbtuple *tuple) {
   }
 
 #ifdef EARLY_SSN_CHECK
+if(!is_takada())
   if (not ssn_check_exclusion(xc)) return {RC_ABORT_SERIAL};
 #endif
   return {RC_TRUE};
