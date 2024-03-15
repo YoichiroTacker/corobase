@@ -220,6 +220,7 @@ rc_t transaction::commit() {
 #ifdef SSN
 #if defined(TAKADA)
 void transaction::ssn_retry(){
+    validated_read_set.clear();
     rc_t rc=RC_ABORT_SERIAL;
     while(rc._val!=RC_TRUE){
         for (uint32_t i = 0; i < read_set.size(); ++i){
@@ -339,9 +340,9 @@ RETRY:
       fat_ptr sstamp=volatile_read(r->sstamp);
       if(sstamp!=NULL_PTR && sstamp.asi_type()== fat_ptr::ASI_LOG)
         isvalidated = false;
-      read_set.emplace_back(r);
+      //read_set.emplace_back(r);
     }
-    validated_read_set.clear();
+    //validated_read_set.clear();
     if (isvalidated == false){
       ssn_retry();
       goto RETRY;
@@ -464,6 +465,12 @@ RETRY:
       }
     }
   }
+
+#ifdef TAKADA
+  for (uint32_t i = 0; i < validated_read_set.size(); ++i)
+      read_set.emplace_back(validated_read_set[i]);
+  validated_read_set.clear();
+#endif
 
   for (uint32_t i = 0; i < write_set.size(); ++i) {
     auto &w = write_set[i];
