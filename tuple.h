@@ -141,6 +141,7 @@ struct dbtuple {
 
   inline fat_ptr *GetCstamp(){
     fat_ptr cstamp = GetObject()->GetClsn();
+    return cstamp;
   }
 
   inline Object *GetObject() {
