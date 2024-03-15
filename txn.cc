@@ -241,14 +241,14 @@ void transaction::ssn_retry(){
           // remove myself from reader list
           serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
         }
-        if (log)
-          log->discard();
+        //if (log)
+        //  log->discard();
         
-        log=nullptr;
+        //log=nullptr;
 
         TXN::serial_deregister_tx(coro_batch_idx, xid);
         MM::epoch_exit(xc->end, xc->begin_epoch);
-        TXN::xid_free(xid); 
+        //TXN::xid_free(xid); 
         rc=RC_INVALID;
         ensure_active();
         //initialize_read_write();
@@ -260,10 +260,11 @@ void transaction::ssn_retry(){
         read_set.clear();
         xid = TXN::xid_alloc();
         xc = TXN::xid_get_context(xid);
+        ASSERT(xc);
         xc->xct = this;
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
-        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
         ASSERT(log);
         xc->begin = logmgr->cur_lsn().offset() + 1;
         xc->pstamp = volatile_read(MM::safesnap_lsn);
