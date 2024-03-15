@@ -76,7 +76,7 @@ class Object {
   inline fat_ptr GetNextPersistent() { return volatile_read(next_pdest_); }
   inline fat_ptr* GetNextPersistentPtr() { return &next_pdest_; }
   inline fat_ptr GetNextVolatile() { return volatile_read(next_volatile_); }
-  inline fat_ptr GetPrevVolatile() { return valatile_read(prev_volatile_); }
+  inline fat_ptr GetPrevVolatile() { return volatile_read(prev_volatile_); }
   inline fat_ptr* GetNextVolatilePtr() { return &next_volatile_; }
   inline void SetNextPersistent(fat_ptr next) {
     volatile_write(next_pdest_, next);
