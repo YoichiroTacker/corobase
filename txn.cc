@@ -272,7 +272,7 @@ void transaction::ssn_retry(){
             ++it;
           }else{
             rc=ssn_read(r);
-            if(rc.val_!=RC_TRUE){
+            if(rc._val!=RC_TRUE){
               isvalidated=true;
             }
             it = validated_read_set.erase(it);
@@ -287,7 +287,7 @@ void transaction::ssn_retry(){
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *r = *it;
           rc = ssn_read(r);
-          if(rc.val_!=RC_TRUE){
+          if(rc._val!=RC_TRUE){
               isvalidated=true;
             }
           it = retrying_task_set.erase(it);
