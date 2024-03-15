@@ -300,6 +300,10 @@ struct sm_oid_mgr {
     // using a CAS is overkill: head is guaranteed to be the (only) dirty
     // version
     volatile_write(ptr->_ptr, head_obj->GetNextVolatile()._ptr);
+    //-----------------------------------------------------------
+    Object *new_head_obj = (Object *)head_obj->GetNextVolatile().offset();
+    new_head_obj->SetPrevVolatile(NULL_PTR);
+    //-----------------------------------------------------------
     __sync_synchronize();
     // tzwang: The caller is responsible for deallocate() the head version
     // got unlinked - a update of own write will record the unlinked version
