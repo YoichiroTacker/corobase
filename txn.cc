@@ -241,9 +241,9 @@ void transaction::ssn_retry(){
           // remove myself from reader list
           serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
         }
-        if (log) {
+        if (log)
           log->discard();
-        }
+        
         log=nullptr;
 
         TXN::serial_deregister_tx(coro_batch_idx, xid);
@@ -263,7 +263,8 @@ void transaction::ssn_retry(){
         xc->xct = this;
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
-        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        ASSERT(log);
         xc->begin = logmgr->cur_lsn().offset() + 1;
         xc->pstamp = volatile_read(MM::safesnap_lsn);
 
@@ -305,8 +306,8 @@ void transaction::ssn_retry(){
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
     volatile_write(xc->state, TXN::TXN_COMMITTING);
-    //ASSERT(log);
-    //xc->end = log->pre_commit().offset();
+    ASSERT(log);
+    xc->end = log->pre_commit().offset();
     return;
   }
 #endif
@@ -701,7 +702,7 @@ RETRY:
   }
 
   // ok, can really commit if we reach here
-  if(!is_takada())
+  //if(!is_takada())
   log->commit(NULL);
 
   // Do this before setting TXN_CMMTD state so that it'll be stable
