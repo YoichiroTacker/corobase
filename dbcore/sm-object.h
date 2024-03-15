@@ -39,11 +39,11 @@ class Object {
   // and next_volatile_.
   fat_ptr next_volatile_;
 
-  fat_ptr prev_volatile_; //追加
-
   // Commit timestamp of this version. Type is XID (LOG) before (after)
   // commit. size_code refers to the whole object including header
   fat_ptr clsn_;
+
+  fat_ptr prev_volatile_; //追加
 
  public:
   static fat_ptr Create(const varstr* tuple_value, bool do_write,
