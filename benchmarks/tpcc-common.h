@@ -943,7 +943,7 @@ class tpcc_order_loader : public bench_loader, public tpcc_worker_mixin {
 
           if (c >= 2101) {
             arena->reset();
-            txn = db->(0, *arena, txn_buf());
+            txn = db->NewTransaction(0, *arena, txn_buf());
             const new_order::key k_no(w, d, c);
             const new_order::value v_no;
 
