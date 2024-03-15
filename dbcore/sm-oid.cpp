@@ -773,8 +773,8 @@ install:
     // I already claimed it, no need to use cas then
     volatile_write(ptr->_ptr, new_obj_ptr->_ptr);
     //head->SetPrevVolatile(new_obj_ptr);
-    Object *prev_object = old_desc->GetNextVolatile();
-    prev_object->SetPrevVolatile(&new_obj_ptr);
+    Object *prev_object = old_desc->GetNextVolatilePtr();
+    prev_object->SetPrevVolatile(new_obj_ptr);
     __sync_synchronize();
     return head;
   } else {
