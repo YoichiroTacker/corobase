@@ -283,9 +283,13 @@ void transaction::ssn_retry(){
             ++it;
           }else{
             dbtuple *new_version = r; 
-            while(new_version->GetClsn().asi_type == fat_ptr::ASI_LOG){
+            Object *obj = new_version->GetObject();
+            while(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin){
               new_version=new_version->PrevVolatile();
+              *obj = new_version->GetObject();
             }
+            ASSERT(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin);
+
             rc=ssn_read(new_version);
             if(rc._val!=RC_TRUE){
               isvalidated=true;
@@ -302,9 +306,12 @@ void transaction::ssn_retry(){
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *r = *it;
           dbtuple *new_version = r; 
-          while(new_version->GetClsn().asi_type == fat_ptr::ASI_LOG){
-            new_version=new_version->PrevVolatile();
-          }
+            Object *obj = new_version->GetObject();
+            while(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin){
+              new_version=new_version->PrevVolatile();
+              *obj = new_version->GetObject();
+            }
+            ASSERT(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin);
           rc = ssn_read(new_version);
           if(rc._val!=RC_TRUE){
               isvalidated=true;
