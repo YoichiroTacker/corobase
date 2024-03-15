@@ -154,6 +154,12 @@ struct dbtuple {
     return next_obj ? next_obj->GetPinnedTuple() : nullptr;
   }
 
+  inline dbtuple *PrevVolatile(){
+    Object *myobj = GetObject();
+    Object *prev_obj = (Object*)myobj->GetPrevVolatile().offset();
+    return prev_obj ? prev_obj->GetPinnedTuple() : nullptr;
+  }
+
  private:
   static ALWAYS_INLINE uint32_t CheckBounds(uint32_t s) {
     ASSERT(s <= std::numeric_limits<uint32_t>::max());

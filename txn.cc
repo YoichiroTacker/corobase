@@ -10,6 +10,8 @@ do {  \
     if(is_takada()){ \
       ssn_retry();  \
       goto RETRY; \
+      if (xc->end == 0) \
+      return rc_t{RC_ABORT_INTERNAL}; \
     }else{  \
        return rc_t{RC_ABORT_SERIAL};  \
     } \
@@ -228,10 +230,11 @@ void transaction::ssn_retry(){
           //if (&r->sstamp == NULL_PTR)
           //if (r->sstamp.offset() == 0)
           fat_ptr sstamp=volatile_read(r->sstamp);
-          if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID)
+          if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
             validated_read_set.emplace_back(r);
-          else
-            retrying_task_set.emplace_back(r);
+          }else{
+            ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
+            retrying_task_set.emplace_back(r);}
         }
         //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
         //Abort();
@@ -279,7 +282,11 @@ void transaction::ssn_retry(){
             //ASSERT(r->sstamp->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
             ++it;
           }else{
-            rc=ssn_read(r);
+            dbtuple *new_version = r; 
+            while(new_version->GetClsn().asi_type == fat_ptr::ASI_LOG){
+              new_version=new_version->PrevVolatile();
+            }
+            rc=ssn_read(new_version);
             if(rc._val!=RC_TRUE){
               isvalidated=true;
             }
@@ -294,7 +301,11 @@ void transaction::ssn_retry(){
         isvalidated=false;
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *r = *it;
-          rc = ssn_read(r);
+          dbtuple *new_version = r; 
+          while(new_version->GetClsn().asi_type == fat_ptr::ASI_LOG){
+            new_version=new_version->PrevVolatile();
+          }
+          rc = ssn_read(new_version);
           if(rc._val!=RC_TRUE){
               isvalidated=true;
             }

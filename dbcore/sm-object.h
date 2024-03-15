@@ -39,6 +39,8 @@ class Object {
   // and next_volatile_.
   fat_ptr next_volatile_;
 
+  fat_ptr prev_volatile_; //追加
+
   // Commit timestamp of this version. Type is XID (LOG) before (after)
   // commit. size_code refers to the whole object including header
   fat_ptr clsn_;
@@ -53,7 +55,8 @@ class Object {
         pdest_(NULL_PTR),
         next_pdest_(NULL_PTR),
         next_volatile_(NULL_PTR),
-        clsn_(NULL_PTR) {}
+        clsn_(NULL_PTR),
+        prev_volatile_(NULL_PTR) {}
 
   Object(fat_ptr pdest, fat_ptr next, epoch_num e, bool in_memory)
       : alloc_epoch_(e),
@@ -61,7 +64,8 @@ class Object {
         pdest_(pdest),
         next_pdest_(next),
         next_volatile_(NULL_PTR),
-        clsn_(NULL_PTR) {}
+        clsn_(NULL_PTR),
+        prev_volatile_(NULL_PTR) {}
 
   inline bool IsDeleted() { return status_ == kStatusDeleted; }
   inline bool IsInMemory() { return status_ == kStatusMemory; }
@@ -72,12 +76,16 @@ class Object {
   inline fat_ptr GetNextPersistent() { return volatile_read(next_pdest_); }
   inline fat_ptr* GetNextPersistentPtr() { return &next_pdest_; }
   inline fat_ptr GetNextVolatile() { return volatile_read(next_volatile_); }
+  inline fat_ptr GetPrevVolatile() { return valatile_read(prev_volatile_); }
   inline fat_ptr* GetNextVolatilePtr() { return &next_volatile_; }
   inline void SetNextPersistent(fat_ptr next) {
     volatile_write(next_pdest_, next);
   }
   inline void SetNextVolatile(fat_ptr next) {
     volatile_write(next_volatile_, next);
+  }
+  inline void SetPrevVolatile(fat_ptr prev){
+    volatile_write(prev_volatile_, prev);
   }
   inline epoch_num GetAllocateEpoch() { return alloc_epoch_; }
   inline void SetAllocateEpoch(epoch_num e) { alloc_epoch_ = e; }
