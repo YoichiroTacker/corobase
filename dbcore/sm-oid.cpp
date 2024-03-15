@@ -957,7 +957,7 @@ void sm_oid_mgr::oid_get_version_backup(fat_ptr &ptr,
     fat_ptr vnext = prev_obj->GetNextVolatile();
     cur_obj->SetNextVolatile(vnext);
     //--------------------------------------------------------------------
-    Object *next_object = (Object *)vnext.offset();;
+    Object *next_object = (Object *)vnext.offset();
     next_object->SetPrevVolatile(ptr);
     //--------------------------------------------------------------------
     fat_ptr newptr = fat_ptr::make(cur_obj, ptr.size_code(), 0);

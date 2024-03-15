@@ -139,6 +139,10 @@ struct dbtuple {
     return &value_start[0];
   }
 
+  inline fat_ptr *GetCstamp(){
+    fat_ptr cstamp = GetObject()->GetClsn();
+  }
+
   inline Object *GetObject() {
     Object *obj = (Object *)((char *)this - sizeof(Object));
     ASSERT(obj->GetPayload() == (char *)this);

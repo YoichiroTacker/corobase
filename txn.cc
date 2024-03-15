@@ -281,14 +281,14 @@ void transaction::ssn_retry(){
             serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
             //ASSERT(r->sstamp->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
             ++it;
-          }else{
+          }else{          
             dbtuple *new_version = r; 
-            Object *obj = new_version->GetObject();
-            while(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin){
+            fat_ptr *clsn = new_version->GetCstamp();
+            while(clsn.asi_type()== fat_ptr::ASI_LOG && clsn.offset() <xc->begin){
               new_version=new_version->PrevVolatile();
-              *obj = new_version->GetObject();
+              *clsn = new_version->GetCstamp();
             }
-            ASSERT(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin);
+            ASSERT(lsn.asi_type()== fat_ptr::ASI_LOG && clsn.offset() <xc->begin);
 
             rc=ssn_read(new_version);
             if(rc._val!=RC_TRUE){
@@ -306,12 +306,12 @@ void transaction::ssn_retry(){
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *r = *it;
           dbtuple *new_version = r; 
-            Object *obj = new_version->GetObject();
-            while(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin){
-              new_version=new_version->PrevVolatile();
-              *obj = new_version->GetObject();
-            }
-            ASSERT(obj->GetClsn().asi_type == fat_ptr::ASI_LOG && obj->GetClsn().offset() < xc->begin);
+          fat_ptr *clsn = new_version->GetCstamp();
+          while(clsn.asi_type()== fat_ptr::ASI_LOG && clsn.offset() <xc->begin){
+            new_version=new_version->PrevVolatile();
+            *clsn = new_version->GetCstamp();
+          }
+          ASSERT(lsn.asi_type()== fat_ptr::ASI_LOG && clsn.offset() <xc->begin);
           rc = ssn_read(new_version);
           if(rc._val!=RC_TRUE){
               isvalidated=true;
