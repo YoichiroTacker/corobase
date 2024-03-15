@@ -774,7 +774,7 @@ install:
     volatile_write(ptr->_ptr, new_obj_ptr->_ptr);
     //head->SetPrevVolatile(new_obj_ptr);
     Object *prev_object = old_desc->GetNextVolatile();
-    prev_object->SetPrevVolatile(new_obj_ptr);
+    prev_object->SetPrevVolatile(&new_obj_ptr);
     __sync_synchronize();
     return head;
   } else {
@@ -786,7 +786,7 @@ install:
     new_object->SetNextVolatile(head);
     //head.SetPrevVolatile(new_obj_ptr);
     Object *prev_object = old_desc;
-    prev_object->SetPrevVolatile(new_obj_ptr);
+    prev_object->SetPrevVolatile(&new_obj_ptr);
 
     if (__sync_bool_compare_and_swap(&ptr->_ptr, head._ptr,
                                      new_obj_ptr->_ptr)) {
@@ -877,7 +877,7 @@ retry:
       // Setup volatile backward pointers
       obj->SetNextVolatile(active_head_ptr);  // Default, might change later
       Object *prev_object = active_head_ptr->GetNextVolatile();
-      prev_object->SetPrevVolatile(new_obj_ptr);
+      prev_object->SetPrevVolatile(&new_obj_ptr);
       if (prev_obj) {
         prev_obj->SetNextVolatile(
             fat_ptr::make(obj, encode_size_aligned(sz), 0));
@@ -952,7 +952,8 @@ void sm_oid_mgr::oid_get_version_backup(fat_ptr &ptr,
     ASSERT(prev_obj->GetClsn().offset() != cur_obj->GetClsn().offset());
     fat_ptr vnext = prev_obj->GetNextVolatile();
     cur_obj->SetNextVolatile(vnext);
-    prev_obj->SetPrevVolatile(cur_obj);
+    fat_ptr nn=vnext->GetPrevVolatile();
+    prev_obj->SetPrevVolatile(nn);
     fat_ptr newptr = fat_ptr::make(cur_obj, ptr.size_code(), 0);
     if (!__sync_bool_compare_and_swap(&prev_obj->GetNextVolatilePtr()->_ptr,
                                       vnext._ptr, newptr._ptr)) {
