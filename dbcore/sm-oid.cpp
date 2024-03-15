@@ -774,7 +774,7 @@ install:
     volatile_write(ptr->_ptr, new_obj_ptr->_ptr);
     //--------------------------------------------------------------------
     //head->SetPrevVolatile(new_obj_ptr);
-    old_desc->SetPrevVolatile(new_obj_ptr);
+    old_desc->SetPrevVolatile(new_object->GetPersistentAddress());
     //--------------------------------------------------------------------
     __sync_synchronize();
     return head;
@@ -786,7 +786,8 @@ install:
     new_object->SetNextPersistent(pa);
     new_object->SetNextVolatile(head);
     //--------------------------------------------------------------------
-    old_desc->SetPrevVolatile(new_obj_ptr);
+    //old_desc->SetPrevVolatile(new_obj_ptr);
+    old_desc->SetPrevVolatile(new_object->GetPersistentAddress());
     //--------------------------------------------------------------------
 
     if (__sync_bool_compare_and_swap(&ptr->_ptr, head._ptr,
@@ -879,7 +880,7 @@ retry:
       obj->SetNextVolatile(active_head_ptr);  // Default, might change later
       //--------------------------------------------------------------------
       //Object *next_object = (Object *)active_head_ptr.offset();;
-      active_head_obj->SetPrevVolatile(ptr);
+      active_head_obj->SetPrevVolatile(obj->GetPersistentAddress());
       //--------------------------------------------------------------------
       if (prev_obj) {
         prev_obj->SetNextVolatile(
