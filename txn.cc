@@ -226,7 +226,7 @@ void transaction::ssn_retry(){
           dbtuple *r = read_set[i];
           //if (&r->sstamp == NULL_PTR)
           //if (r->sstamp.offset() == 0)
-          sstamp=volatile_read(r->sstamp);
+          fat_ptr sstamp=volatile_read(r->sstamp);
           if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID)
             validated_read_set.emplace_back(r);
           else
@@ -270,7 +270,7 @@ void transaction::ssn_retry(){
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
           dbtuple *r = *it;
           //if(r->sstamp.offset()==0){
-          sstamp=volatile_read(r->sstamp);
+          fat_ptr sstamp=volatile_read(r->sstamp);
           if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
             serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
             //ASSERT(r->sstamp->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
@@ -336,7 +336,7 @@ RETRY:
     {
       dbtuple *r = validated_read_set[i];
       //if (r->sstamp.offset() != 0)
-      sstamp=volatile_read(r->sstamp);
+      fat_ptr sstamp=volatile_read(r->sstamp);
       if(sstamp!=NULL_PTR && sstamp.asi_type()== fat_ptr::ASI_LOG)
         isvalidated = false;
       read_set.emplace_back(r);
