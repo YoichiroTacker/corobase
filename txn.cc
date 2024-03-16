@@ -159,7 +159,7 @@ void transaction::Abort() {
 #ifdef SSN
       //追加
       Object* next_obj= (Object*) tuple->NextVolatile();
-      newt_obj->SetPrevVolatile(NULL_PTR);
+      next_obj->SetPrevVolatile(NULL_PTR);
       tuple->NextVolatile()->welcome_read_mostly_tx();
 #endif
     }
