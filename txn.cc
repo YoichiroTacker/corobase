@@ -234,9 +234,10 @@ void transaction::ssn_retry(){
           //if (r->sstamp.offset() == 0)
           fat_ptr sstamp=volatile_read(r->sstamp);
           if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
+          //if(sstamp== NULL_PTR) {
             validated_read_set.emplace_back(r);
           }else{
-            ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
+            //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
             retrying_task_set.emplace_back(r);}
         }
         //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
@@ -281,10 +282,11 @@ void transaction::ssn_retry(){
           //if(r->sstamp.offset()==0){
           fat_ptr sstamp=volatile_read(r->sstamp);
           if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
+          //if(sstamp== NULL_PTR){
             serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
             //ASSERT(r->sstamp->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
             ++it;
-          }else{          
+          }else{
             dbtuple *new_version = r; 
             fat_ptr *clsn = new_version->GetCstamp();
             while(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin){
@@ -308,9 +310,10 @@ void transaction::ssn_retry(){
         isvalidated=false;
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *r = *it;
-          dbtuple *new_version = r; 
+          dbtuple *new_version = r;
           fat_ptr *clsn = new_version->GetCstamp();
-          while(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin){
+          ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
+          while(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
             new_version=new_version->PrevVolatile();
             clsn = new_version->GetCstamp();
           }
