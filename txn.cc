@@ -202,10 +202,14 @@ rc_t transaction::commit() {
 #ifdef TAKADA
     rc_t rc =parallel_ssn_commit();
     if(is_takada()&& rc._val==RC_INVALID){
-      while(rc._val ==RC_TRUE){
+      while(rc._val !=RC_TRUE){
         ssn_retry();
         rc= parallel_ssn_commit();
+        if (xc->end == 0) {
+          return rc_t{RC_ABORT_INTERNAL};
+        }
       }
+      return rc_t{RC_TRUE};
     }else{
       return rc;
     }
@@ -237,7 +241,7 @@ rc_t transaction::commit() {
 #if defined(TAKADA)
 void transaction::ssn_retry(){
     validated_read_set.clear();
-    rc_t rc=RC_ABORT_SERIAL;
+    rc_t rc=RC_INVALID;
     while(rc._val!=RC_TRUE){
         for (uint32_t i = 0; i < read_set.size(); ++i){
           dbtuple *r = read_set[i];
@@ -322,7 +326,7 @@ void transaction::ssn_retry(){
           }
         }
         if(isvalidated==true){
-          rc =RC_ABORT_SERIAL;
+          rc =RC_INVALID;
           continue;
         }
 
@@ -352,7 +356,8 @@ void transaction::ssn_retry(){
           it = retrying_task_set.erase(it);
         }
         if(isvalidated==true){
-          rc =RC_ABORT_SERIAL;
+          rc =RC_INVALID;
+          continue;
         }
     }
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
