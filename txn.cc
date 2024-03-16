@@ -201,7 +201,7 @@ rc_t transaction::commit() {
 #ifdef SSN
 #ifdef TAKADA
     rc_t rc =parallel_ssn_commit();
-    if(is_takada()&& rc._val==RC_ABORT_SERIAL){
+    if(is_takada()&& rc._val==RC_INVALID){
       while(rc._val ==RC_TRUE){
         ssn_retry();
         rc= parallel_ssn_commit();
@@ -251,7 +251,7 @@ void transaction::ssn_retry(){
             //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
             retrying_task_set.emplace_back(r);}
         }
-        //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
+        std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
         //Abort();
         for (uint32_t i = 0; i < read_set.size(); ++i) {
           auto &r = read_set[i];
@@ -400,7 +400,8 @@ RETRY:
       ssn_retry();
       goto RETRY;
     }*/
-    return rc_t{RC_ABORT_SERIAL};
+    if(isvalidated ==false)
+      return rc_t{RC_INVALID};
 #endif
 
   // find out my largest predecessor (\eta) and smallest sucessor (\pi)
@@ -423,9 +424,10 @@ RETRY:
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
-//#ifdef TAKADA
-//        SSN_RETRY_AND_GOTO_RETRY();
-//#endif
+#ifdef TAKADA
+        //SSN_RETRY_AND_GOTO_RETRY();
+        return rc_t{RC_INVALID};
+#endif
         //rc =RC_ABORT_SERIAL;
         return rc_t{RC_ABORT_SERIAL};
       }
@@ -513,9 +515,10 @@ RETRY:
         }
         xc->set_sstamp(s);
         if (not ssn_check_exclusion(xc)) {
-//#ifdef TAKADA
-//        SSN_RETRY_AND_GOTO_RETRY();
-//#endif
+#ifdef TAKADA
+        //SSN_RETRY_AND_GOTO_RETRY();
+        return rc_t{RC_INVALID};
+#endif
           return rc_t{RC_ABORT_SERIAL};
  //rc= RC_ABORT_SERIAL;
         }
