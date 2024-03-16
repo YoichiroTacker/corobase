@@ -322,7 +322,7 @@ void transaction::ssn_retry(){
           fat_ptr *clsn = new_version->GetCstamp();
           ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
           ASSERT(clsn->offset() <xc->begin);
-          while(;;){
+          while(true){
             dbtuple *newer_version = new_version->PrevVolatile();
             if(newer_version==NULL_PTR)
               break;
