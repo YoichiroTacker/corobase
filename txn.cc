@@ -397,6 +397,7 @@ RETRY:
 
   // Process reads first for a stable sstamp to be used for the
   // read-optimization
+  rc_t rc=RC_INVALID;
   for (uint32_t i = 0; i < read_set.size(); ++i) {
     auto &r = read_set[i];
   try_get_successor:
@@ -410,10 +411,11 @@ RETRY:
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
-        SSN_RETRY_AND_GOTO_RETRY();
-#endif
-        return rc_t{RC_ABORT_SERIAL};
+//#ifdef TAKADA
+//        SSN_RETRY_AND_GOTO_RETRY();
+//#endif
+        rc =RC_ABORT_SERIAL;
+        //return rc_t{RC_ABORT_SERIAL};
       }
     } else {
       // overwriter in progress
@@ -499,13 +501,22 @@ RETRY:
         }
         xc->set_sstamp(s);
         if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
-        SSN_RETRY_AND_GOTO_RETRY();
-#endif
-          return rc_t{RC_ABORT_SERIAL};
+//#ifdef TAKADA
+//        SSN_RETRY_AND_GOTO_RETRY();
+//#endif
+ //         return rc_t{RC_ABORT_SERIAL};
+ rc= RC_ABORT_SERIAL;
         }
       }
     }
+  }
+#ifdef TAKADA
+  if(rc==RC_ABORT_SERIAL){
+    SSN_RETRY_AND_GOTO_RETRY();
+  }
+#endif
+if(rc==RC_ABORT_SERIAL){
+    return rc_t{RC_ABORT_SERIAL};
   }
 
 #ifdef TAKADA
