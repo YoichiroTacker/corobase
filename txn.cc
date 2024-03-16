@@ -157,6 +157,9 @@ void transaction::Abort() {
     if (tuple->NextVolatile()) {
       volatile_write(tuple->NextVolatile()->sstamp, NULL_PTR);
 #ifdef SSN
+      //追加
+      Object* next_obj= (Object*) tuple->NextVolatile();
+      newt_obj->SetPrevVolatile(NULL_PTR);
       tuple->NextVolatile()->welcome_read_mostly_tx();
 #endif
     }
@@ -1417,6 +1420,7 @@ rc_t transaction::Update(TableDescriptor *td, OID oid, const varstr *k, varstr *
       // unlink the version here (note abort_impl won't be able to catch
       // it because it's not yet in the write set)
       oidmgr->PrimaryTupleUnlink(tuple_array, oid);
+      prev_obj->SetPrevVolatile(NULL_PTR);
       return rc_t{RC_ABORT_SERIAL};
     }
 #endif
