@@ -200,11 +200,11 @@ rc_t transaction::commit() {
     }
 #ifdef SSN
 #ifdef TAKADA
-    rc_t rc =paralell_ssn_commit();
-    if(rc._val==RC_ABORT_SERIAL){
+    rc_t rc =parallel_ssn_commit();
+    if(is_takada()&& rc._val==RC_ABORT_SERIAL){
       while(rc._val ==RC_TRUE){
         ssn_retry();
-        rc=paralell_ssn_commiit();
+        rc= parallel_ssn_commit();
       }
     }else{
       return rc;
@@ -396,10 +396,11 @@ RETRY:
       //read_set.emplace_back(r);
     }
     //validated_read_set.clear();
-    if (isvalidated == false){
+    /*if (isvalidated == false){
       ssn_retry();
       goto RETRY;
-    }
+    }*/
+    return rc_t{RC_ABORT_SERIAL};
 #endif
 
   // find out my largest predecessor (\eta) and smallest sucessor (\pi)
@@ -408,7 +409,7 @@ RETRY:
 
   // Process reads first for a stable sstamp to be used for the
   // read-optimization
-  rc_t rc=RC_INVALID;
+  //rc_t rc=RC_INVALID;
   for (uint32_t i = 0; i < read_set.size(); ++i) {
     auto &r = read_set[i];
   try_get_successor:
