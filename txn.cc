@@ -9,9 +9,9 @@
 do {  \
     if(is_takada()){ \
       ssn_retry();  \
-      goto RETRY; \
       if (xc->end == 0) \
       return rc_t{RC_ABORT_INTERNAL}; \
+      goto RETRY; \
     }else{  \
        return rc_t{RC_ABORT_SERIAL};  \
     } \
@@ -199,6 +199,17 @@ rc_t transaction::commit() {
       return rc_t{RC_ABORT_INTERNAL};
     }
 #ifdef SSN
+#ifdef TAKADA
+    rc_t rc =paralell_ssn_commit();
+    if(rc._val==RC_ABORT_SERIAL){
+      while(rc._val ==RC_TRUE){
+        ssn_retry();
+        rc=paralell_ssn_commiit();
+      }
+    }else{
+      return rc;
+    }
+#endif
     return parallel_ssn_commit();
 #elif defined SSI
     return parallel_ssi_commit();
@@ -414,8 +425,8 @@ RETRY:
 //#ifdef TAKADA
 //        SSN_RETRY_AND_GOTO_RETRY();
 //#endif
-        rc =RC_ABORT_SERIAL;
-        //return rc_t{RC_ABORT_SERIAL};
+        //rc =RC_ABORT_SERIAL;
+        return rc_t{RC_ABORT_SERIAL};
       }
     } else {
       // overwriter in progress
@@ -504,20 +515,20 @@ RETRY:
 //#ifdef TAKADA
 //        SSN_RETRY_AND_GOTO_RETRY();
 //#endif
- //         return rc_t{RC_ABORT_SERIAL};
- rc= RC_ABORT_SERIAL;
+          return rc_t{RC_ABORT_SERIAL};
+ //rc= RC_ABORT_SERIAL;
         }
       }
     }
   }
-#ifdef TAKADA
-  if(rc==RC_ABORT_SERIAL){
+/*#ifdef TAKADA
+  if(rc._val==RC_ABORT_SERIAL){
     SSN_RETRY_AND_GOTO_RETRY();
   }
 #endif
-if(rc==RC_ABORT_SERIAL){
+if(rc._val==RC_ABORT_SERIAL){
     return rc_t{RC_ABORT_SERIAL};
-  }
+  }*/
 
 #ifdef TAKADA
   for (uint32_t i = 0; i < validated_read_set.size(); ++i)
