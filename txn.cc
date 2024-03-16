@@ -289,12 +289,20 @@ void transaction::ssn_retry(){
           }else{
             dbtuple *new_version = r; 
             fat_ptr *clsn = new_version->GetCstamp();
-            while(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin){
-              new_version=new_version->PrevVolatile();
+            ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
+            ASSERT(clsn->offset() <xc->begin);
+            while(;;){
+              dbtuple *newer_version = new_version->PrevVolatile();
+              if(!newer_version)
+                break;
               clsn = new_version->GetCstamp();
+              if(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
+                break;
+              }else{
+                newer_version=new_version;
+              }
             }
             ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
-
             rc=ssn_read(new_version);
             if(rc._val!=RC_TRUE){
               isvalidated=true;
@@ -313,9 +321,17 @@ void transaction::ssn_retry(){
           dbtuple *new_version = r;
           fat_ptr *clsn = new_version->GetCstamp();
           ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
-          while(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
-            new_version=new_version->PrevVolatile();
+          ASSERT(clsn->offset() <xc->begin);
+          while(;;){
+            dbtuple *newer_version = new_version->PrevVolatile();
+            if(!newer_version)
+              break;
             clsn = new_version->GetCstamp();
+            if(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
+              break;
+            }else{
+              newer_version=new_version;
+            }
           }
           ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
           rc = ssn_read(new_version);
