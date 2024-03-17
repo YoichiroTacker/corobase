@@ -238,14 +238,9 @@ void transaction::ssn_retry(){
             validated_read_set.emplace_back(r);
           }else{
             //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
-            retrying_task_set.emplace_back(r);}
-        }
-        //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
-        //Abort();
-        for (uint32_t i = 0; i < read_set.size(); ++i) {
-          auto &r = read_set[i];
-          ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
-          // remove myself from reader list
+            retrying_task_set.emplace_back(r);
+          }
+          ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG); //Abort();
           serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
         }
         //if (log)
@@ -259,11 +254,12 @@ void transaction::ssn_retry(){
         ensure_active();
 
         //initialize_read_write();
-        if (config::phantom_prot) {
+        /*if (config::phantom_prot) {
           masstree_absent_set.set_empty_key(NULL);  // google dense map
           masstree_absent_set.clear();
-        }
-        write_set.clear();
+        }*/
+        ASSERT(write_set.empty());
+        //write_set.clear();
         read_set.clear();
         xid = TXN::xid_alloc();
         xc = TXN::xid_get_context(xid);
