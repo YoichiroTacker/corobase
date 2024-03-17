@@ -186,16 +186,16 @@ rc_t transaction::commit() {
     }
 #ifdef SSN
 #ifdef TAKADA
+    int count = 0;
     rc_t rc =parallel_ssn_commit();
     if(is_takada()&& rc._val==RC_ABORT_SERIAL){
-      //while(rc._val !=RC_TRUE){
+      while(rc._val ==RC_ABORT_INTERNAL && count !=1){
         ssn_retry();
-        if (xc->end == 0) {
+        if (xc->end == 0)
           return rc_t{RC_ABORT_INTERNAL};
-        }
         rc = parallel_ssn_commit();
-      //}
-      //return rc_t{RC_TRUE};
+        count++;
+      }
       return rc;
     }else{
       return rc;
