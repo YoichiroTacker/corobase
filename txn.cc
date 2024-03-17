@@ -293,14 +293,14 @@ void transaction::ssn_retry(){
         bool isretrying=true;
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           dbtuple *new_version =*it;
-          fat_ptr *clsn = new_version->GetCstamp();
-          ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
+          fat_ptr clsn = new_version->GetCstamp();
+          ASSERT(clsn.asi_type()== fat_ptr::ASI_LOG && clsn.offset() <xc->begin);
           while(true){
             dbtuple *newer_version = new_version->PrevVolatile();
             if(newer_version==NULL_PTR)
               break;
             clsn = newer_version->GetCstamp();
-            if(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
+            if(clsn.asi_type()== fat_ptr::ASI_XID || clsn.offset() > xc->begin){
               break;
             }else{
               new_version = newer_version;

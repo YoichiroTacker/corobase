@@ -139,9 +139,8 @@ struct dbtuple {
     return &value_start[0];
   }
 
-  inline fat_ptr *GetCstamp(){
-    fat_ptr cstamp = GetObject()->GetClsn();
-    return cstamp;
+  inline fat_ptr GetCstamp(){
+    return GetObject()->GetClsn();
   }
 
   inline Object *GetObject() {
