@@ -311,7 +311,7 @@ void transaction::ssn_retry(){
               isretrying=false;
           it = retrying_task_set.erase(it);
         }
-        if(isvalidated==false)
+        if(isretrying==false)
           rc =RC_INVALID;
     }
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
