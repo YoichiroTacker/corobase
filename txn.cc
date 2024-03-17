@@ -338,7 +338,7 @@ void transaction::ssn_retry(){
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
           //dbtuple *r = *it;
           //dbtuple *new_version = r;
-          dbtuple *new_version =it;
+          dbtuple *new_version =*it;
           fat_ptr *clsn = new_version->GetCstamp();
           ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
           ASSERT(clsn->offset() <xc->begin);
