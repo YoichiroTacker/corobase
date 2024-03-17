@@ -201,15 +201,16 @@ rc_t transaction::commit() {
 #ifdef SSN
 #ifdef TAKADA
     rc_t rc =parallel_ssn_commit();
-    if(is_takada()&& rc._val==RC_INVALID){
-      while(rc._val !=RC_TRUE){
+    if(is_takada()&& rc._val==RC_ABORT_SERIAL){
+      //while(rc._val !=RC_TRUE){
         ssn_retry();
         rc = parallel_ssn_commit();
         if (xc->end == 0) {
           return rc_t{RC_ABORT_INTERNAL};
         }
-      }
-      return rc_t{RC_TRUE};
+      //}
+      //return rc_t{RC_TRUE};
+      return rc;
     }else{
       return rc;
     }
@@ -408,7 +409,8 @@ RETRY:
       goto RETRY;
     }*/
     if(isvalidated ==false)
-      return rc_t{RC_INVALID};
+      //return rc_t{RC_INVALID};
+      return rc_t{RC_ABORT_SERIAL};
 #endif
 
   // find out my largest predecessor (\eta) and smallest sucessor (\pi)
@@ -431,10 +433,10 @@ RETRY:
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+//#ifdef TAKADA
         //SSN_RETRY_AND_GOTO_RETRY();
-        return rc_t{RC_INVALID};
-#endif
+        //return rc_t{RC_INVALID};
+//#endif
         //rc =RC_ABORT_SERIAL;
         return rc_t{RC_ABORT_SERIAL};
       }
@@ -522,10 +524,10 @@ RETRY:
         }
         xc->set_sstamp(s);
         if (not ssn_check_exclusion(xc)) {
-#ifdef TAKADA
+//#ifdef TAKADA
         //SSN_RETRY_AND_GOTO_RETRY();
-        return rc_t{RC_INVALID};
-#endif
+        //return rc_t{RC_INVALID};
+//#endif
           return rc_t{RC_ABORT_SERIAL};
  //rc= RC_ABORT_SERIAL;
         }
