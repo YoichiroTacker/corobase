@@ -240,8 +240,8 @@ void transaction::ssn_retry(){
             //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
             retrying_task_set.emplace_back(r);
           }
-          ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG); //Abort();
-          serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
+          //ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG); //Abort();
+          //serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
         }
         Abort();
         //if (log)
@@ -254,8 +254,8 @@ void transaction::ssn_retry(){
 
         ensure_active();
 
-        //initialize_read_write();
-        if (config::phantom_prot) {
+        initialize_read_write();
+        /*if (config::phantom_prot) {
           masstree_absent_set.set_empty_key(NULL);  // google dense map
           masstree_absent_set.clear();
         }
@@ -268,10 +268,10 @@ void transaction::ssn_retry(){
         xc->xct = this;
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
-        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
         ASSERT(log);
         xc->begin = logmgr->cur_lsn().offset() + 1;
-        xc->pstamp = volatile_read(MM::safesnap_lsn);
+        xc->pstamp = volatile_read(MM::safesnap_lsn);*/
 
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
           dbtuple *r = *it;
