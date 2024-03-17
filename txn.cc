@@ -189,7 +189,7 @@ rc_t transaction::commit() {
     int count = 0;
     rc_t rc =parallel_ssn_commit();
     if(is_takada()&& rc._val==RC_ABORT_SERIAL){
-      while(rc._val ==RC_ABORT_INTERNAL && count !=1){
+      while(rc._val ==RC_ABORT_SERIAL && count < 1){
         ssn_retry();
         if (xc->end == 0)
           return rc_t{RC_ABORT_INTERNAL};
