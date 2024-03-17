@@ -772,7 +772,10 @@ install:
     new_object->SetNextVolatile(old_desc->GetNextVolatile());
     // I already claimed it, no need to use cas then
     volatile_write(ptr->_ptr, new_obj_ptr->_ptr);
-    old_desc->SetPrevVolatile(new_object->GetPersistentAddress());  //追加
+    //old_desc->SetPrevVolatile(new_object->GetPersistentAddress());  //追加    
+    fat_ptr *old_ptr= old_desc->GetNextVolatilePtr();
+    Object *old_obj = (Object *)old_ptr->offset();
+    old_obj->SetPrevVolatile(*new_obj_ptr);
     __sync_synchronize();
     return head;
   } else {
@@ -782,7 +785,7 @@ install:
     }
     new_object->SetNextPersistent(pa);
     new_object->SetNextVolatile(head);
-    old_desc->SetPrevVolatile(new_object->GetPersistentAddress()); //追加
+    old_desc->SetPrevVolatile(*new_obj_ptr); //追加
 
     if (__sync_bool_compare_and_swap(&ptr->_ptr, head._ptr,
                                      new_obj_ptr->_ptr)) {
@@ -872,7 +875,8 @@ retry:
 
       // Setup volatile backward pointers
       obj->SetNextVolatile(active_head_ptr);  // Default, might change later
-      active_head_obj->SetPrevVolatile(obj->GetPersistentAddress());
+      //active_head_obj->SetPrevVolatile(obj->GetPersistentAddress()); //追加
+      active_head_obj->SetPrevVolatile(ptr);
       if (prev_obj) {
         prev_obj->SetNextVolatile(
             fat_ptr::make(obj, encode_size_aligned(sz), 0));
