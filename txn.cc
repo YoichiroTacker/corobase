@@ -204,10 +204,10 @@ rc_t transaction::commit() {
     if(is_takada()&& rc._val==RC_ABORT_SERIAL){
       //while(rc._val !=RC_TRUE){
         ssn_retry();
-        rc = parallel_ssn_commit();
         if (xc->end == 0) {
           return rc_t{RC_ABORT_INTERNAL};
         }
+        rc = parallel_ssn_commit();
       //}
       //return rc_t{RC_TRUE};
       return rc;
@@ -256,7 +256,7 @@ void transaction::ssn_retry(){
             //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
             retrying_task_set.emplace_back(r);}
         }
-        std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
+        //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
         //Abort();
         for (uint32_t i = 0; i < read_set.size(); ++i) {
           auto &r = read_set[i];
@@ -267,7 +267,7 @@ void transaction::ssn_retry(){
         if (log)
           log->discard();
         
-        log=nullptr;
+        //log=nullptr;
 
         TXN::serial_deregister_tx(coro_batch_idx, xid);
         MM::epoch_exit(xc->end, xc->begin_epoch);
@@ -287,10 +287,10 @@ void transaction::ssn_retry(){
         xc->xct = this;
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
-        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
-        //ASSERT(log);
-        //xc->begin = logmgr->cur_lsn().offset() + 1;
-        xc->begin = rep::GetReadView();
+        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        ASSERT(log);
+        xc->begin = logmgr->cur_lsn().offset() + 1;
+        //xc->begin = rep::GetReadView();
         xc->pstamp = volatile_read(MM::safesnap_lsn);
 
         bool isvalidated=false;
@@ -304,7 +304,7 @@ void transaction::ssn_retry(){
             //ASSERT(r->sstamp->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
             ++it;
           }else{
-            dbtuple *new_version = r; 
+            /*dbtuple *new_version = r; 
             fat_ptr *clsn = new_version->GetCstamp();
             ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
             ASSERT(clsn->offset() <xc->begin);
@@ -323,7 +323,8 @@ void transaction::ssn_retry(){
             rc=ssn_read(new_version);
             if(rc._val!=RC_TRUE){
               isvalidated=true;
-            }
+            }*/
+            retrying_task_set.emplace_back(*it);
             it = validated_read_set.erase(it);
           }
         }
@@ -331,11 +332,13 @@ void transaction::ssn_retry(){
           rc =RC_INVALID;
           continue;
         }
+        std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
 
         isvalidated=false;
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
-          dbtuple *r = *it;
-          dbtuple *new_version = r;
+          //dbtuple *r = *it;
+          //dbtuple *new_version = r;
+          dbtuple *new_version =it;
           fat_ptr *clsn = new_version->GetCstamp();
           ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
           ASSERT(clsn->offset() <xc->begin);
@@ -347,7 +350,8 @@ void transaction::ssn_retry(){
             if(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
               break;
             }else{
-              newer_version=new_version;
+              //newer_version=new_version;
+              new_version = newer_version;
             }
           }
           ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
@@ -365,9 +369,9 @@ void transaction::ssn_retry(){
     ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
     volatile_write(xc->state, TXN::TXN_COMMITTING);
-    //ASSERT(log);
-    //xc->end = log->pre_commit().offset();
-    xc->end =rep::GetReadView();
+    ASSERT(log);
+    xc->end = log->pre_commit().offset();
+    //xc->end =rep::GetReadView();
     return;
   }
 #endif
