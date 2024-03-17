@@ -300,13 +300,11 @@ struct sm_oid_mgr {
     // using a CAS is overkill: head is guaranteed to be the (only) dirty
     // version
     //-----------------------------------------------------------
-    //Object *new_head_obj = (Object *)head_obj->GetNextVolatile().offset();
-    //new_head_obj->SetPrevVolatile(NULL_PTR);
-    fat_ptr *new_ptr = head_obj->GetNextVolatile();
+    /*fat_ptr *new_ptr = head_obj->GetNextVolatile();
     if(new_ptr!=NULL_PTR){
     Object *new_head_obj = (Object*)new_ptr->offset();
     if(new_head_obj !=NULL_PTR){
-    new_head_obj->SetPrevVolatile(NULL_PTR);}}
+    new_head_obj->SetPrevVolatile(NULL_PTR);}}*/
     //-----------------------------------------------------------
     volatile_write(ptr->_ptr, head_obj->GetNextVolatile()._ptr);
     __sync_synchronize();
