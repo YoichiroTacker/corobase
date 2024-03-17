@@ -189,7 +189,7 @@ rc_t transaction::commit() {
     int count = 0;
     rc_t rc =parallel_ssn_commit();
     if(is_takada()&& rc._val==RC_ABORT_SERIAL){
-      while(rc._val ==RC_ABORT_SERIAL && count < 1){
+      while(rc._val ==RC_ABORT_SERIAL){ // && count < 1){
         ssn_retry();
         if (xc->end == 0)
           return rc_t{RC_ABORT_INTERNAL};
@@ -240,9 +240,10 @@ void transaction::ssn_retry(){
             //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
             retrying_task_set.emplace_back(r);
           }
-          ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG); //Abort();
-          serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
+          //ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG); //Abort();
+          //serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
         }
+        Abort();
         //if (log)
         //  log->discard();
 
@@ -253,11 +254,11 @@ void transaction::ssn_retry(){
 
         ensure_active();
 
-        //initialize_read_write();
+        initialize_read_write();
         /*if (config::phantom_prot) {
           masstree_absent_set.set_empty_key(NULL);  // google dense map
           masstree_absent_set.clear();
-        }*/
+        }
         ASSERT(write_set.empty());
         //write_set.clear();
         read_set.clear();
@@ -267,10 +268,10 @@ void transaction::ssn_retry(){
         xc->xct = this;
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
-        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
         ASSERT(log);
         xc->begin = logmgr->cur_lsn().offset() + 1;
-        xc->pstamp = volatile_read(MM::safesnap_lsn);
+        xc->pstamp = volatile_read(MM::safesnap_lsn);*/
 
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
           dbtuple *r = *it;
