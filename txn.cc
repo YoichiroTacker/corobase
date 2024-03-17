@@ -5,19 +5,6 @@
 #include "dbcore/serial.h"
 #include "ermia.h"
 
-#define SSN_RETRY_AND_GOTO_RETRY() \
-do {  \
-    if(is_takada()){ \
-      ssn_retry();  \
-      if (xc->end == 0) \
-      return rc_t{RC_ABORT_INTERNAL}; \
-      goto RETRY; \
-    }else{  \
-       return rc_t{RC_ABORT_SERIAL};  \
-    } \
-} while(0)
-
-
 extern thread_local ermia::epoch_num coroutine_batch_end_epoch;
 
 namespace ermia {
@@ -156,10 +143,9 @@ void transaction::Abort() {
     ASSERT(XID::from_ptr(tuple->GetObject()->GetClsn()) == xid);
     if (tuple->NextVolatile()) {
       volatile_write(tuple->NextVolatile()->sstamp, NULL_PTR);
-#ifdef SSN
-      //追加
-      Object* next_obj= (Object*) tuple->NextVolatile();
+      Object* next_obj= (Object*) tuple->NextVolatile(); //追加
       next_obj->SetPrevVolatile(NULL_PTR);
+#ifdef SSN
       tuple->NextVolatile()->welcome_read_mostly_tx();
 #endif
     }
@@ -246,11 +232,9 @@ void transaction::ssn_retry(){
     while(rc._val!=RC_TRUE){
         for (uint32_t i = 0; i < read_set.size(); ++i){
           dbtuple *r = read_set[i];
-          //if (&r->sstamp == NULL_PTR)
-          //if (r->sstamp.offset() == 0)
           fat_ptr sstamp=volatile_read(r->sstamp);
-          if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
-          //if(sstamp== NULL_PTR) {
+          //if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
+          if(sstamp== NULL_PTR) {
             validated_read_set.emplace_back(r);
           }else{
             //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
@@ -264,16 +248,16 @@ void transaction::ssn_retry(){
           // remove myself from reader list
           serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
         }
-        if (log)
-          log->discard();
-        
-        //log=nullptr;
+        //if (log)
+        //  log->discard();
 
+        //~transaction();
         TXN::serial_deregister_tx(coro_batch_idx, xid);
         MM::epoch_exit(xc->end, xc->begin_epoch);
-        //TXN::xid_free(xid); 
-        rc=RC_INVALID;
+        TXN::xid_free(xid); 
+
         ensure_active();
+
         //initialize_read_write();
         if (config::phantom_prot) {
           masstree_absent_set.set_empty_key(NULL);  // google dense map
@@ -287,61 +271,30 @@ void transaction::ssn_retry(){
         xc->xct = this;
         xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
         TXN::serial_register_tx(coro_batch_idx, xid);
-        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        //log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
         ASSERT(log);
         xc->begin = logmgr->cur_lsn().offset() + 1;
-        //xc->begin = rep::GetReadView();
         xc->pstamp = volatile_read(MM::safesnap_lsn);
 
-        bool isvalidated=false;
         for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
           dbtuple *r = *it;
-          //if(r->sstamp.offset()==0){
           fat_ptr sstamp=volatile_read(r->sstamp);
-          if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
-          //if(sstamp== NULL_PTR){
+          //if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
+          if(sstamp== NULL_PTR){
             serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
-            //ASSERT(r->sstamp->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG);
             ++it;
           }else{
-            /*dbtuple *new_version = r; 
-            fat_ptr *clsn = new_version->GetCstamp();
-            ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
-            ASSERT(clsn->offset() <xc->begin);
-            while(true){
-              dbtuple *newer_version = new_version->PrevVolatile();
-              if(newer_version==NULL_PTR)
-                break;
-              clsn = newer_version->GetCstamp();
-              if(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
-                break;
-              }else{
-                newer_version=new_version;
-              }
-            }
-            ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
-            rc=ssn_read(new_version);
-            if(rc._val!=RC_TRUE){
-              isvalidated=true;
-            }*/
             retrying_task_set.emplace_back(*it);
             it = validated_read_set.erase(it);
           }
         }
-        if(isvalidated==true){
-          rc =RC_INVALID;
-          continue;
-        }
-        std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
+        //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
 
-        isvalidated=false;
+        bool isretrying=true;
         for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
-          //dbtuple *r = *it;
-          //dbtuple *new_version = r;
           dbtuple *new_version =*it;
           fat_ptr *clsn = new_version->GetCstamp();
-          ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG);
-          ASSERT(clsn->offset() <xc->begin);
+          ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
           while(true){
             dbtuple *newer_version = new_version->PrevVolatile();
             if(newer_version==NULL_PTR)
@@ -350,35 +303,27 @@ void transaction::ssn_retry(){
             if(clsn->asi_type()== fat_ptr::ASI_XID || clsn->offset() > xc->begin){
               break;
             }else{
-              //newer_version=new_version;
               new_version = newer_version;
             }
           }
-          ASSERT(clsn->asi_type()== fat_ptr::ASI_LOG && clsn->offset() <xc->begin);
           rc = ssn_read(new_version);
-          if(rc._val!=RC_TRUE){
-              isvalidated=true;
-            }
+          if(rc._val!=RC_TRUE)
+              isretrying=false;
           it = retrying_task_set.erase(it);
         }
-        if(isvalidated==true){
+        if(isvalidated==false)
           rc =RC_INVALID;
-          continue;
-        }
     }
-    ASSERT(validated_read_set.empty() and retrying_task_set.empty());
     ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
     volatile_write(xc->state, TXN::TXN_COMMITTING);
     ASSERT(log);
     xc->end = log->pre_commit().offset();
-    //xc->end =rep::GetReadView();
     return;
   }
 #endif
 
 
 rc_t transaction::parallel_ssn_commit() {
-RETRY:
   auto cstamp = xc->end;
 
   // note that sstamp comes from reads, but the read optimization might
@@ -401,19 +346,11 @@ RETRY:
     for (uint32_t i = 0; i < validated_read_set.size(); ++i)
     {
       dbtuple *r = validated_read_set[i];
-      //if (r->sstamp.offset() != 0)
       fat_ptr sstamp=volatile_read(r->sstamp);
       if(sstamp!=NULL_PTR && sstamp.asi_type()== fat_ptr::ASI_LOG)
         isvalidated = false;
-      //read_set.emplace_back(r);
     }
-    //validated_read_set.clear();
-    /*if (isvalidated == false){
-      ssn_retry();
-      goto RETRY;
-    }*/
     if(isvalidated ==false)
-      //return rc_t{RC_INVALID};
       return rc_t{RC_ABORT_SERIAL};
 #endif
 
@@ -423,7 +360,6 @@ RETRY:
 
   // Process reads first for a stable sstamp to be used for the
   // read-optimization
-  //rc_t rc=RC_INVALID;
   for (uint32_t i = 0; i < read_set.size(); ++i) {
     auto &r = read_set[i];
   try_get_successor:
@@ -437,11 +373,6 @@ RETRY:
       // overwriter already fully committed/aborted or no overwriter at all
       xc->set_sstamp(successor_clsn.offset());
       if (not ssn_check_exclusion(xc)) {
-//#ifdef TAKADA
-        //SSN_RETRY_AND_GOTO_RETRY();
-        //return rc_t{RC_INVALID};
-//#endif
-        //rc =RC_ABORT_SERIAL;
         return rc_t{RC_ABORT_SERIAL};
       }
     } else {
@@ -528,24 +459,11 @@ RETRY:
         }
         xc->set_sstamp(s);
         if (not ssn_check_exclusion(xc)) {
-//#ifdef TAKADA
-        //SSN_RETRY_AND_GOTO_RETRY();
-        //return rc_t{RC_INVALID};
-//#endif
           return rc_t{RC_ABORT_SERIAL};
- //rc= RC_ABORT_SERIAL;
         }
       }
     }
   }
-/*#ifdef TAKADA
-  if(rc._val==RC_ABORT_SERIAL){
-    SSN_RETRY_AND_GOTO_RETRY();
-  }
-#endif
-if(rc._val==RC_ABORT_SERIAL){
-    return rc_t{RC_ABORT_SERIAL};
-  }*/
 
 #ifdef TAKADA
   for (uint32_t i = 0; i < validated_read_set.size(); ++i)
@@ -636,9 +554,6 @@ if(rc._val==RC_ABORT_SERIAL){
           }
           xc->set_pstamp(last_cstamp);
           if (not ssn_check_exclusion(xc)) {
-/*#ifdef TAKADA
-            SSN_RETRY_AND_GOTO_RETRY();
-#endif*/
             return rc_t{RC_ABORT_SERIAL};
           }
         }  // otherwise we will catch the tuple's xstamp outside the loop
@@ -706,9 +621,6 @@ if(rc._val==RC_ABORT_SERIAL){
             // we succeeded setting the read-mostly tx's sstamp
             xc->set_pstamp(last_cstamp);
             if (not ssn_check_exclusion(xc)) {
-/*#ifdef TAKADA
-              SSN_RETRY_AND_GOTO_RETRY();
-#endif*/
               return rc_t{RC_ABORT_SERIAL};
             }
           }
@@ -728,9 +640,6 @@ if(rc._val==RC_ABORT_SERIAL){
             }
             xc->set_pstamp(TXN::serial_get_last_read_mostly_cstamp(xid_idx));
             if (not ssn_check_exclusion(xc)) {
-/*#ifdef TAKADA
-              SSN_RETRY_AND_GOTO_RETRY();
-#endif*/
               return rc_t{RC_ABORT_SERIAL};
             }
           } else {
@@ -739,9 +648,6 @@ if(rc._val==RC_ABORT_SERIAL){
             if (TXN::spin_for_cstamp(rxid, reader_xc) == TXN::TXN_CMMTD) {
               xc->set_pstamp(reader_end);
               if (not ssn_check_exclusion(xc)) {
-/*#ifdef TAKADA
-                SSN_RETRY_AND_GOTO_RETRY();
-#endif*/
                 return rc_t{RC_ABORT_SERIAL};
               }
             }
@@ -771,9 +677,6 @@ if(rc._val==RC_ABORT_SERIAL){
   }
 
   if (not ssn_check_exclusion(xc)){
-/*#ifdef TAKADA
-        SSN_RETRY_AND_GOTO_RETRY();
-#endif*/
         return rc_t{RC_ABORT_SERIAL};
   }
 
@@ -1340,7 +1243,7 @@ rc_t transaction::si_commit() {
     return rc_t{RC_TRUE};
   }
 
-  if (flags & TXN_FLAG_READ_ONLY || flags & TXN_FLAG_TAKADA) {
+  if (flags & TXN_FLAG_READ_ONLY) {
     volatile_write(xc->state, TXN::TXN_CMMTD);
     return rc_t{RC_TRUE};
   }

@@ -156,12 +156,6 @@ void gc_version_chain(fat_ptr *oid_entry) {
         ALWAYS_ASSERT(LSN::from_ptr(clsn).offset() <= glsn);
         fat_ptr next_ptr = cur_obj->GetNextVolatile();
         cur_obj->SetClsn(NULL_PTR);
-        //--------------------------------------------------------
-        //cur_obj->GetNextVolatile().SetPrevVolatile(NULL_PTR);
-        //fat_ptr *next_ptr = cur_obj->GetNextVolatile();
-        //object *next_obj = (Object *)next_ptr.offset();
-        //next_obj->SetPrevVolatile(NULL_PTR);
-        //--------------------------------------------------------
         cur_obj->SetNextVolatile(NULL_PTR);
         if (!tls_free_object_pool) {
           tls_free_object_pool = new TlsFreeObjectPool;
@@ -233,12 +227,6 @@ void deallocate(fat_ptr p) {
   ASSERT(p.size_code());
   ASSERT(p.size_code() != INVALID_SIZE_CODE);
   Object *obj = (Object *)p.offset();
-  //--------------------------------------------------------
-  //obj->GetNextVolatile().SetPrevVolatile(NULL_PTR);
-  //fat_ptr *prev_ptr = obj->GetNextVolatile();
-  //object *prev_obj = (Object *)prev_ptr.offset();
-  //prev_obj->SetPrevVolatile(NULL_PTR);
-  //--------------------------------------------------------
   obj->SetNextVolatile(NULL_PTR);
   obj->SetClsn(NULL_PTR);
   if (!tls_free_object_pool) {

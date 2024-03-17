@@ -340,7 +340,7 @@ void ConcurrentMasstreeIndex::XctSearchRangeCallback::on_resp_node(
                     << std::endl);
   if (config::phantom_prot) {
 #ifdef SSN
-    if (t->flags & transaction::TXN_FLAG_READ_ONLY) {     //read only transactionは読み込みをしていない？
+    if (t->flags & transaction::TXN_FLAG_READ_ONLY) {
       return;
     }
 #endif
