@@ -623,9 +623,9 @@ rc_t tpcc_worker::txn_order_status() {
 }
 
 rc_t tpcc_worker::txn_stock_level() {
-  //const uint warehouse_id = pick_wh(r, home_warehouse_id);
+  const uint warehouse_id = pick_wh(r, home_warehouse_id);
   //const uint threshold = RandomNumber(r, 10, 20);
-  //const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
+  const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
 
   // output from txn counters:
   //   max_absent_range_set_size : 0
@@ -643,8 +643,8 @@ rc_t tpcc_worker::txn_stock_level() {
   // locking is un-necessary (since we can just read from some old snapshot)
   
   
-   for(uint warehouse_id=1; warehouse_id <= home_warehouse_id; warehouse_id++){
-    for(uint districtID=1; districtID <= NumDistrictsPerWarehouse(); districtID++){
+  // for(uint warehouse_id=1; warehouse_id <= home_warehouse_id; warehouse_id++){
+  //  for(uint districtID=1; districtID <= NumDistrictsPerWarehouse(); districtID++){
       const uint threshold = RandomNumber(r, 10, 20);
   const district::key k_d(warehouse_id, districtID);
   district::value v_d_temp;
@@ -695,8 +695,8 @@ rc_t tpcc_worker::txn_stock_level() {
   }
   TryCatch(db->Commit(txn));
   return {RC_TRUE};
-    }
-   }
+  //  }
+  // }
 }
 
 rc_t tpcc_worker::txn_credit_check() {
