@@ -1022,7 +1022,7 @@ rc_t tpcc_worker::txn_query2() {
   //credit check from here
   //const uint warehouse_id = pick_wh(r, home_warehouse_id);
   //const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
-  for(uint warehouse_id=0; warehouse_id<=home_warehouse_id; warehouse_id++){
+  /*for(uint warehouse_id=0; warehouse_id<=home_warehouse_id; warehouse_id++){
     for(uint districtID=0; districtID<NumDistrictsPerWarehouse(); districtID++){
   uint customerDistrictID, customerWarehouseID;
   if (likely(g_disable_xpartition_txn || NumWarehouses() == 1 ||
@@ -1062,11 +1062,8 @@ rc_t tpcc_worker::txn_query2() {
   //		c_id = :c_id;
   credit_check_order_scan_callback c_no(s_arena.get());
   const new_order::key k_no_0(warehouse_id, districtID, 0);
-  const new_order::key k_no_1(warehouse_id, districtID,
-                              std::numeric_limits<int32_t>::max());
-  TryCatch(tbl_new_order(warehouse_id)
-                ->Scan(txn, Encode(str(Size(k_no_0)), k_no_0),
-                       &Encode(str(Size(k_no_1)), k_no_1), c_no));
+  const new_order::key k_no_1(warehouse_id, districtID, std::numeric_limits<int32_t>::max());
+  TryCatch(tbl_new_order(warehouse_id)->Scan(txn, Encode(str(Size(k_no_0)), k_no_0), &Encode(str(Size(k_no_1)), k_no_1), c_no));
   ALWAYS_ASSERT(c_no.output.size());
 
   double sum = 0;
@@ -1096,7 +1093,7 @@ rc_t tpcc_worker::txn_query2() {
     sum += c_ol.sum;
   }
     }
-  }
+  }*/
 
   TryCatch(db->Commit(txn));
   return {RC_TRUE};
