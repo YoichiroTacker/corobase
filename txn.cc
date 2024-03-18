@@ -673,16 +673,13 @@ rc_t transaction::parallel_ssn_commit() {
     xc->finalize_sstamp();
   }
 
-  if (not ssn_check_exclusion(xc)){
-        return rc_t{RC_ABORT_SERIAL};
-  }
+  if (not ssn_check_exclusion(xc)) return rc_t{RC_ABORT_SERIAL};
 
   if (config::phantom_prot && !MasstreeCheckPhantom()) {
     return rc_t{RC_ABORT_PHANTOM};
   }
 
   // ok, can really commit if we reach here
-  //if(!is_takada())
   log->commit(NULL);
 
   // Do this before setting TXN_CMMTD state so that it'll be stable
@@ -1600,7 +1597,9 @@ rc_t transaction::ssn_read(dbtuple *tuple) {
   }
 
 #ifdef EARLY_SSN_CHECK
+#ifdef TAKADA
 if(!is_takada())
+#endif
   if (not ssn_check_exclusion(xc)) return {RC_ABORT_SERIAL};
 #endif
   return {RC_TRUE};
