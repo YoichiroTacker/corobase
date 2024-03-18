@@ -1019,9 +1019,9 @@ rc_t tpcc_worker::txn_query2() {
     }
   }
 
-  //credit check from here
-  const uint warehouse_id = pick_wh(r, home_warehouse_id);
-  const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
+  //credit check from here 
+  warehouse_id = pick_wh(r, home_warehouse_id);
+  districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
       uint customerDistrictID, customerWarehouseID;
       /*if (likely(g_disable_xpartition_txn || NumWarehouses() == 1 || RandomNumber(r, 1, 100) <= 85)) {
         customerDistrictID = districtID;
