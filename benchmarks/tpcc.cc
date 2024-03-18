@@ -510,7 +510,8 @@ rc_t tpcc_worker::txn_order_status() {
   //   max_read_set_size : 81
   //   max_write_set_size : 0
   //   num_txn_contexts : 4
-  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  //ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_TAKADA, *arena, txn_buf());
   ermia::scoped_str_arena s_arena(arena);
   // NB: since txn_order_status() is a RO txn, we assume that
   // locking is un-necessary (since we can just read from some old snapshot)
@@ -623,7 +624,7 @@ rc_t tpcc_worker::txn_order_status() {
 
 rc_t tpcc_worker::txn_stock_level() {
   const uint warehouse_id = pick_wh(r, home_warehouse_id);
-  const uint threshold = RandomNumber(r, 10, 20);
+  //const uint threshold = RandomNumber(r, 10, 20);
   const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
 
   // output from txn counters:
@@ -635,10 +636,16 @@ rc_t tpcc_worker::txn_stock_level() {
   //   n_node_scan_large_instances : 1
   //   n_read_set_large_instances : 2
   //   num_txn_contexts : 3
-  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  //ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_READ_ONLY, *arena, txn_buf());
+  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_TAKADA, *arena, txn_buf());
   ermia::scoped_str_arena s_arena(arena);
   // NB: since txn_stock_level() is a RO txn, we assume that
   // locking is un-necessary (since we can just read from some old snapshot)
+  
+  
+  // for(uint warehouse_id=1; warehouse_id <= home_warehouse_id; warehouse_id++){
+  //  for(uint districtID=1; districtID <= NumDistrictsPerWarehouse(); districtID++){
+      const uint threshold = RandomNumber(r, 10, 20);
   const district::key k_d(warehouse_id, districtID);
   district::value v_d_temp;
   ermia::varstr valptr;
@@ -688,6 +695,8 @@ rc_t tpcc_worker::txn_stock_level() {
   }
   TryCatch(db->Commit(txn));
   return {RC_TRUE};
+  //  }
+  // }
 }
 
 rc_t tpcc_worker::txn_credit_check() {
@@ -818,7 +827,8 @@ rc_t tpcc_worker::txn_credit_check() {
 
 rc_t tpcc_worker::txn_query2() {
   // TODO(yongjunh): use TXN_FLAG_READ_MOSTLY once SSN's and SSI's read optimization are available.
-  ermia::transaction *txn = db->NewTransaction(0, *arena, txn_buf());
+  //ermia::transaction *txn = db->NewTransaction(0, *arena, txn_buf());
+  ermia::transaction *txn = db->NewTransaction(ermia::transaction::TXN_FLAG_TAKADA, *arena, txn_buf());
   ermia::scoped_str_arena s_arena(arena);
 
   static thread_local tpcc_table_scanner r_scanner(arena);
@@ -929,7 +939,7 @@ rc_t tpcc_worker::txn_query2() {
 
         // XXX. read-mostly txn: update stock or item here
 
-        if (min_v_s.s_quantity < 15) {
+        /*if (min_v_s.s_quantity < 15) {
           stock::value new_v_s;
           new_v_s.s_quantity = min_v_s.s_quantity + 50;
           new_v_s.s_ytd = min_v_s.s_ytd;
@@ -941,7 +951,7 @@ rc_t tpcc_worker::txn_query2() {
           TryCatch(tbl_stock(min_k_s.s_w_id)
                         ->UpdateRecord(txn, Encode(str(Size(min_k_s)), min_k_s),
                               Encode(str(Size(new_v_s)), new_v_s)));
-        }
+        }*/
 
         // TODO. sorting by n_name, su_name, i_id
 
@@ -956,6 +966,58 @@ rc_t tpcc_worker::txn_query2() {
     }
   }
 
+
+  //stocklevel from here
+  const uint warehouse_id = pick_wh(r, home_warehouse_id);
+  const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
+
+ for(uint warehouse_id=1; warehouse_id <= home_warehouse_id; warehouse_id++){
+    for(uint districtID=1; districtID <= NumDistrictsPerWarehouse(); districtID++){
+      const uint threshold = RandomNumber(r, 10, 20);
+      const district::key k_d(warehouse_id, districtID);
+      district::value v_d_temp;
+      ermia::varstr valptr;
+
+      rc_t rc = rc_t{RC_INVALID};
+      tbl_district(warehouse_id)->GetRecord(txn, rc, Encode(str(Size(k_d)), k_d), valptr);
+      TryVerifyRelaxed(rc);
+
+      const district::value *v_d = Decode(valptr, v_d_temp);
+#ifndef NDEBUG
+      checker::SanityCheckDistrict(&k_d, v_d);
+#endif
+
+      const uint64_t cur_next_o_id =
+          g_new_order_fast_id_gen? NewOrderIdHolder(warehouse_id, districtID).load(std::memory_order_acquire): v_d->d_next_o_id;
+
+      // manual joins are fun!
+      order_line_scan_callback c;
+      const int32_t lower = cur_next_o_id >= 20 ? (cur_next_o_id - 20) : 0;
+      const order_line::key k_ol_0(warehouse_id, districtID, lower, 0);
+      const order_line::key k_ol_1(warehouse_id, districtID, cur_next_o_id, 0);
+      {
+        TryCatch(tbl_order_line(warehouse_id)->Scan(txn, Encode(str(Size(k_ol_0)), k_ol_0), &Encode(str(Size(k_ol_1)), k_ol_1), c));
+      }
+      {
+        std::unordered_map<uint, bool> s_i_ids_distinct;
+        for (auto &p : c.s_i_ids) {
+          const stock::key k_s(warehouse_id, p.first);
+          stock::value v_s;
+          ASSERT(p.first >= 1 && p.first <= NumItems());
+
+          rc = rc_t{RC_INVALID};
+          tbl_stock(warehouse_id)->GetRecord(txn, rc, Encode(str(Size(k_s)), k_s), valptr);
+          TryVerifyRelaxed(rc);
+
+          const uint8_t *ptr = (const uint8_t *)valptr.data();
+          int16_t i16tmp;
+          ptr = serializer<int16_t, true>::read(ptr, &i16tmp);
+          if (i16tmp < int(threshold)) s_i_ids_distinct[p.first] = 1;
+        }
+        // NB(stephentu): s_i_ids_distinct.size() is the computed result of this txn
+      }
+    }
+  }
   TryCatch(db->Commit(txn));
   return {RC_TRUE};
 }

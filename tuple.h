@@ -139,6 +139,10 @@ struct dbtuple {
     return &value_start[0];
   }
 
+  inline fat_ptr GetCstamp(){
+    return GetObject()->GetClsn();
+  }
+
   inline Object *GetObject() {
     Object *obj = (Object *)((char *)this - sizeof(Object));
     ASSERT(obj->GetPayload() == (char *)this);
@@ -152,6 +156,12 @@ struct dbtuple {
     ASSERT(myobj->GetPayload() == (char *)this);
     Object *next_obj = (Object*)myobj->GetNextVolatile().offset();
     return next_obj ? next_obj->GetPinnedTuple() : nullptr;
+  }
+
+  inline dbtuple *PrevVolatile(){
+    Object *myobj = GetObject();
+    Object *prev_obj = (Object*)myobj->GetPrevVolatile().offset();
+    return prev_obj ? prev_obj->GetPinnedTuple() : nullptr;
   }
 
  private:

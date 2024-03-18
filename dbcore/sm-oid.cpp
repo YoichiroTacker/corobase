@@ -772,6 +772,10 @@ install:
     new_object->SetNextVolatile(old_desc->GetNextVolatile());
     // I already claimed it, no need to use cas then
     volatile_write(ptr->_ptr, new_obj_ptr->_ptr);
+    //old_desc->SetPrevVolatile(new_object->GetPersistentAddress());  //追加    
+    fat_ptr *old_ptr= old_desc->GetNextVolatilePtr();
+    Object *old_obj = (Object *)old_ptr->offset();
+    old_obj->SetPrevVolatile(*new_obj_ptr);
     __sync_synchronize();
     return head;
   } else {
@@ -781,6 +785,8 @@ install:
     }
     new_object->SetNextPersistent(pa);
     new_object->SetNextVolatile(head);
+    old_desc->SetPrevVolatile(*new_obj_ptr); //追加
+
     if (__sync_bool_compare_and_swap(&ptr->_ptr, head._ptr,
                                      new_obj_ptr->_ptr)) {
       // Succeeded installing a new version, now only I can modify the
@@ -869,6 +875,8 @@ retry:
 
       // Setup volatile backward pointers
       obj->SetNextVolatile(active_head_ptr);  // Default, might change later
+      //active_head_obj->SetPrevVolatile(obj->GetPersistentAddress()); //追加
+      active_head_obj->SetPrevVolatile(ptr);
       if (prev_obj) {
         prev_obj->SetNextVolatile(
             fat_ptr::make(obj, encode_size_aligned(sz), 0));
@@ -943,6 +951,8 @@ void sm_oid_mgr::oid_get_version_backup(fat_ptr &ptr,
     ASSERT(prev_obj->GetClsn().offset() != cur_obj->GetClsn().offset());
     fat_ptr vnext = prev_obj->GetNextVolatile();
     cur_obj->SetNextVolatile(vnext);
+    Object *next_object = (Object *)vnext.offset(); //追加
+    next_object->SetPrevVolatile(ptr);
     fat_ptr newptr = fat_ptr::make(cur_obj, ptr.size_code(), 0);
     if (!__sync_bool_compare_and_swap(&prev_obj->GetNextVolatilePtr()->_ptr,
                                       vnext._ptr, newptr._ptr)) {

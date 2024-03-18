@@ -143,6 +143,8 @@ void transaction::Abort() {
     ASSERT(XID::from_ptr(tuple->GetObject()->GetClsn()) == xid);
     if (tuple->NextVolatile()) {
       volatile_write(tuple->NextVolatile()->sstamp, NULL_PTR);
+      Object* next_obj= (Object*) tuple->NextVolatile(); //追加
+      next_obj->SetPrevVolatile(NULL_PTR);
 #ifdef SSN
       tuple->NextVolatile()->welcome_read_mostly_tx();
 #endif
@@ -183,6 +185,22 @@ rc_t transaction::commit() {
       return rc_t{RC_ABORT_INTERNAL};
     }
 #ifdef SSN
+#ifdef TAKADA
+    int count = 0;
+    rc_t rc =parallel_ssn_commit();
+    if(is_takada()&& rc._val==RC_ABORT_SERIAL){
+      while(rc._val ==RC_ABORT_SERIAL){// && count < 1){
+        ssn_retry();
+        if (xc->end == 0)
+          return rc_t{RC_ABORT_INTERNAL};
+        rc = parallel_ssn_commit();
+        count++;
+      }
+      return rc;
+    }else{
+      return rc;
+    }
+#endif
     return parallel_ssn_commit();
 #elif defined SSI
     return parallel_ssi_commit();
@@ -207,6 +225,101 @@ rc_t transaction::commit() {
 #endif
 
 #ifdef SSN
+#if defined(TAKADA)
+void transaction::ssn_retry(){
+    validated_read_set.clear();
+    rc_t rc=RC_INVALID;
+    while(rc._val!=RC_TRUE){
+        for (uint32_t i = 0; i < read_set.size(); ++i){
+          dbtuple *r = read_set[i];
+          fat_ptr sstamp=volatile_read(r->sstamp);
+          //if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
+          if(sstamp== NULL_PTR) {
+            validated_read_set.emplace_back(r);
+          }else{
+            //ASSERT(sstamp.asi_type() == fat_ptr::ASI_LOG);
+            retrying_task_set.emplace_back(r);
+          }
+          //ASSERT(r->GetObject()->GetClsn().asi_type() == fat_ptr::ASI_LOG); //Abort();
+          //serial_deregister_reader_tx(coro_batch_idx, &r->readers_bitmap);
+        }
+        Abort();
+        //if (log)
+        //  log->discard();
+
+        //~transaction();
+        TXN::serial_deregister_tx(coro_batch_idx, xid);
+        MM::epoch_exit(xc->end, xc->begin_epoch);
+        TXN::xid_free(xid); 
+
+        ensure_active();
+
+        initialize_read_write();
+        /*if (config::phantom_prot) {
+          masstree_absent_set.set_empty_key(NULL);  // google dense map
+          masstree_absent_set.clear();
+        }
+        ASSERT(write_set.empty());
+        //write_set.clear();
+        read_set.clear();
+        xid = TXN::xid_alloc();
+        xc = TXN::xid_get_context(xid);
+        ASSERT(xc);
+        xc->xct = this;
+        xc->begin_epoch = config::tls_alloc ? MM::epoch_enter() : 0;
+        TXN::serial_register_tx(coro_batch_idx, xid);
+        log = logmgr->new_tx_log((char*)string_allocator().next(sizeof(sm_tx_log_impl))->data());
+        ASSERT(log);
+        xc->begin = logmgr->cur_lsn().offset() + 1;
+        xc->pstamp = volatile_read(MM::safesnap_lsn);*/
+
+        for(auto it =validated_read_set.begin(); it!= validated_read_set.end();){
+          dbtuple *r = *it;
+          fat_ptr sstamp=volatile_read(r->sstamp);
+          //if(sstamp== NULL_PTR || sstamp.asi_type()== fat_ptr::ASI_XID){
+          if(sstamp== NULL_PTR){
+            serial_register_reader_tx(coro_batch_idx, &r->readers_bitmap); 
+            ++it;
+          }else{
+            retrying_task_set.emplace_back(*it);
+            it = validated_read_set.erase(it);
+          }
+        }
+        //std::cout << validated_read_set.size() << " " << retrying_task_set.size() <<std::endl;
+
+        bool isretrying=true;
+        for (auto it = retrying_task_set.begin(); it != retrying_task_set.end();) {
+          dbtuple *new_version =*it;
+          fat_ptr clsn = new_version->GetCstamp();
+          ASSERT(clsn.asi_type()== fat_ptr::ASI_LOG && clsn.offset() <xc->begin);
+          while(true){
+            dbtuple *newer_version = new_version->PrevVolatile();
+            if(newer_version==NULL_PTR)
+              break;
+            clsn = newer_version->GetCstamp();
+            if(clsn.asi_type()== fat_ptr::ASI_XID || clsn.offset() > xc->begin){
+              break;
+            }else{
+              new_version = newer_version;
+            }
+          }
+          rc = ssn_read(new_version);
+          if(rc._val!=RC_TRUE)
+              isretrying=false;
+          it = retrying_task_set.erase(it);
+        }
+        if(isretrying==false)
+          rc =RC_INVALID;
+    }
+    ALWAYS_ASSERT(state() == TXN::TXN_ACTIVE);
+    volatile_write(xc->state, TXN::TXN_COMMITTING);
+    ASSERT(log);
+    xc->end = log->pre_commit().offset();
+    return;
+  }
+#endif
+
+
 rc_t transaction::parallel_ssn_commit() {
   auto cstamp = xc->end;
 
@@ -223,6 +336,20 @@ rc_t transaction::parallel_ssn_commit() {
     if (xc->sstamp.load(std::memory_order_relaxed) == 0)
       xc->sstamp.store(cstamp, std::memory_order_relaxed);
   }
+
+    // 追加部分
+#ifdef TAKADA
+    bool isvalidated = true;
+    for (uint32_t i = 0; i < validated_read_set.size(); ++i)
+    {
+      dbtuple *r = validated_read_set[i];
+      fat_ptr sstamp=volatile_read(r->sstamp);
+      if(sstamp!=NULL_PTR && sstamp.asi_type()== fat_ptr::ASI_LOG)
+        isvalidated = false;
+    }
+    if(isvalidated ==false)
+      return rc_t{RC_ABORT_SERIAL};
+#endif
 
   // find out my largest predecessor (\eta) and smallest sucessor (\pi)
   // for reads, see if sb. has written the tuples - look at sucessor lsn
@@ -334,6 +461,12 @@ rc_t transaction::parallel_ssn_commit() {
       }
     }
   }
+
+#ifdef TAKADA
+  for (uint32_t i = 0; i < validated_read_set.size(); ++i)
+      read_set.emplace_back(validated_read_set[i]);
+  validated_read_set.clear();
+#endif
 
   for (uint32_t i = 0; i < write_set.size(); ++i) {
     auto &w = write_set[i];
@@ -1242,6 +1375,7 @@ rc_t transaction::Update(TableDescriptor *td, OID oid, const varstr *k, varstr *
       // unlink the version here (note abort_impl won't be able to catch
       // it because it's not yet in the write set)
       oidmgr->PrimaryTupleUnlink(tuple_array, oid);
+      prev_obj->SetPrevVolatile(NULL_PTR);
       return rc_t{RC_ABORT_SERIAL};
     }
 #endif
@@ -1426,6 +1560,9 @@ rc_t transaction::ssn_read(dbtuple *tuple) {
     // have committed overwrite
     if (xc->sstamp > tuple_sstamp.offset() or xc->sstamp == 0)
       xc->sstamp = tuple_sstamp.offset();  // \pi
+#ifdef TAKADA
+      read_set.emplace_back(tuple);   
+#endif
   } else {
     ASSERT(tuple_sstamp == NULL_PTR or
            tuple_sstamp.asi_type() == fat_ptr::ASI_XID);
@@ -1460,6 +1597,9 @@ rc_t transaction::ssn_read(dbtuple *tuple) {
   }
 
 #ifdef EARLY_SSN_CHECK
+#ifdef TAKADA
+if(!is_takada())
+#endif
   if (not ssn_check_exclusion(xc)) return {RC_ABORT_SERIAL};
 #endif
   return {RC_TRUE};
