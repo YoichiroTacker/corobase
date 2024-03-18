@@ -964,8 +964,8 @@ rc_t tpcc_worker::txn_query2() {
   const uint warehouse_id = pick_wh(r, home_warehouse_id);
   const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
 
- for(uint warehouse_id=r, warehouse_id <= home_warehouse_id; warehouse_id++){
-    for(uint districtID=1, districtID <= NumDistrictsPerWarehouse(); districtID++){
+ for(uint warehouse_id=r; warehouse_id <= home_warehouse_id; warehouse_id++){
+    for(uint districtID=1; districtID <= NumDistrictsPerWarehouse(); districtID++){
       const uint threshold = RandomNumber(r, 10, 20);
       const district::key k_d(warehouse_id, districtID);
       district::value v_d_temp;
