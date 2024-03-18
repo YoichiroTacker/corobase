@@ -959,6 +959,58 @@ rc_t tpcc_worker::txn_query2() {
     }
   }
 
+
+  //stocklevel from here
+  const uint warehouse_id = pick_wh(r, home_warehouse_id);
+  const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
+
+ for(uint warehouse_id=r, warehouse_id <= home_warehouse_id; warehouse_id++){
+    for(uint districtID=1, districtID <= NumDistrictsPerWarehouse(); districtID++){
+      const uint threshold = RandomNumber(r, 10, 20);
+      const district::key k_d(warehouse_id, districtID);
+      district::value v_d_temp;
+      ermia::varstr valptr;
+
+      rc_t rc = rc_t{RC_INVALID};
+      tbl_district(warehouse_id)->GetRecord(txn, rc, Encode(str(Size(k_d)), k_d), valptr);
+      TryVerifyRelaxed(rc);
+
+      const district::value *v_d = Decode(valptr, v_d_temp);
+#ifndef NDEBUG
+      checker::SanityCheckDistrict(&k_d, v_d);
+#endif
+
+      const uint64_t cur_next_o_id =
+          g_new_order_fast_id_gen? NewOrderIdHolder(warehouse_id, districtID).load(std::memory_order_acquire): v_d->d_next_o_id;
+
+      // manual joins are fun!
+      order_line_scan_callback c;
+      const int32_t lower = cur_next_o_id >= 20 ? (cur_next_o_id - 20) : 0;
+      const order_line::key k_ol_0(warehouse_id, districtID, lower, 0);
+      const order_line::key k_ol_1(warehouse_id, districtID, cur_next_o_id, 0);
+      {
+        TryCatch(tbl_order_line(warehouse_id)->Scan(txn, Encode(str(Size(k_ol_0)), k_ol_0), &Encode(str(Size(k_ol_1)), k_ol_1), c));
+      }
+      {
+        std::unordered_map<uint, bool> s_i_ids_distinct;
+        for (auto &p : c.s_i_ids) {
+          const stock::key k_s(warehouse_id, p.first);
+          stock::value v_s;
+          ASSERT(p.first >= 1 && p.first <= NumItems());
+
+          rc = rc_t{RC_INVALID};
+          tbl_stock(warehouse_id)->GetRecord(txn, rc, Encode(str(Size(k_s)), k_s), valptr);
+          TryVerifyRelaxed(rc);
+
+          const uint8_t *ptr = (const uint8_t *)valptr.data();
+          int16_t i16tmp;
+          ptr = serializer<int16_t, true>::read(ptr, &i16tmp);
+          if (i16tmp < int(threshold)) s_i_ids_distinct[p.first] = 1;
+        }
+        // NB(stephentu): s_i_ids_distinct.size() is the computed result of this txn
+      }
+    }
+  }
   TryCatch(db->Commit(txn));
   return {RC_TRUE};
 }
